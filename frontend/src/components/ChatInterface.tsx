@@ -9,6 +9,29 @@ import LoadingSpinner from './LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
+interface SpeechRecognitionResultLike {
+  transcript: string;
+}
+
+interface SpeechRecognitionEventLike {
+  results: ArrayLike<ArrayLike<SpeechRecognitionResultLike>>;
+}
+
+interface SpeechRecognitionLike {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+  onerror: (() => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+}
+
+interface WindowWithSpeechRecognition extends Window {
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+}
+
 export default function ChatInterface() {
   const { state, addChatMessage } = useApp();
   const { t } = useTranslation();
@@ -21,7 +44,7 @@ export default function ChatInterface() {
   const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const scrollToBottom = () => {
@@ -43,13 +66,14 @@ export default function ChatInterface() {
 
   useEffect(() => {
     // Initialize speech recognition
-    if (typeof window !== 'undefined' && 'webkitSpeechRecognition' in window) {
-      recognitionRef.current = new (window as any).webkitSpeechRecognition();
+    const speechWindow = window as WindowWithSpeechRecognition;
+    if (typeof window !== 'undefined' && speechWindow.webkitSpeechRecognition) {
+      recognitionRef.current = new speechWindow.webkitSpeechRecognition();
       recognitionRef.current.continuous = false;
       recognitionRef.current.interimResults = false;
       recognitionRef.current.lang = state.selectedLanguage === 'hindi' ? 'hi-IN' : 'en-US';
 
-      recognitionRef.current.onresult = (event: any) => {
+      recognitionRef.current.onresult = (event: SpeechRecognitionEventLike) => {
         const transcript = event.results[0][0].transcript;
         setMessage(transcript);
         setIsListening(false);
