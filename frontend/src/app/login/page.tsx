@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
-import { adminAPI } from '@/lib/api';
+import { adminAPI, buyerAuthAPI } from '@/lib/api';
 import { Mail, Lock, ArrowLeft, Sprout } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
@@ -48,9 +48,28 @@ export default function LoginPage() {
         }
       }
 
+      try {
+        const buyerResp = await buyerAuthAPI.login(formData.email.trim(), formData.password);
+        localStorage.setItem('buyerToken', buyerResp.token);
+        localStorage.setItem('buyer', JSON.stringify(buyerResp.buyer));
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminUser');
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
+        router.replace('/buyer');
+        return;
+      } catch (buyerError: any) {
+        const status = buyerError?.response?.status;
+        if (status && ![400, 401, 403].includes(status)) {
+          throw buyerError;
+        }
+      }
+
       await login(formData.email, formData.password);
       localStorage.removeItem('adminToken');
       localStorage.removeItem('adminUser');
+      localStorage.removeItem('buyerToken');
+      localStorage.removeItem('buyer');
       router.replace('/');
     } catch (error: any) {
       const validation = error?.response?.data?.errors;

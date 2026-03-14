@@ -11,12 +11,36 @@ const api = axios.create({
   },
 });
 
+const buyerApi = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 const adminApi = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
 });
+
+export function getErrorMessage(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { message?: string; errors?: Array<{ msg?: string; path?: string }> } | undefined;
+    if (data?.message) return data.message;
+    if (Array.isArray(data?.errors) && data.errors.length > 0) {
+      return data.errors.map((e) => e.msg || e.path).filter(Boolean).join('. ');
+    }
+    const status = err.response?.status;
+    if (status === 400) return 'Invalid request. Check your input.';
+    if (status === 401) return 'Please sign in again.';
+    if (status === 403) return 'Access denied.';
+    if (status === 404) return 'Not found.';
+    if (status && status >= 500) return 'Server error. Try again later.';
+  }
+  return err instanceof Error ? err.message : 'Something went wrong.';
+}
 
 // Add auth token to requests
 api.interceptors.request.use((config) => {
@@ -29,6 +53,14 @@ api.interceptors.request.use((config) => {
 
 adminApi.interceptors.request.use((config) => {
   const token = localStorage.getItem('adminToken');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+buyerApi.interceptors.request.use((config) => {
+  const token = localStorage.getItem('buyerToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -439,6 +471,25 @@ export interface Listing {
   sellerRating?: { avgRating: number | null; totalReviews: number };
 }
 
+export interface Buyer {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  address?: { state?: string; district?: string; village?: string; fullAddress?: string };
+}
+
+export interface BuyerOrder {
+  _id: string;
+  buyerId: Buyer | string;
+  listingId: Listing & {
+    sellerId?: { name?: string; phone?: string; email?: string };
+  };
+  quantity: number;
+  status: string;
+  createdAt: string;
+}
+
 export const marketplaceAPI = {
   getMyListings: async () => {
     const response = await api.get<{ listings: Listing[] }>('/marketplace/listings/my');
@@ -461,6 +512,43 @@ export const marketplaceAPI = {
   },
   getById: async (id: string) => {
     const response = await api.get<{ listing: Listing }>(`/marketplace/listings/${id}`);
+    return response.data;
+  },
+};
+
+export const buyerMarketplaceAPI = {
+  browse: async (params?: { state?: string; cropName?: string; limit?: number; page?: number }) => {
+    const response = await api.get<{ listings: Listing[]; total: number; page: number; limit: number }>('/marketplace/listings/browse', { params });
+    return response.data;
+  },
+  getById: async (id: string) => {
+    const response = await api.get<{ listing: Listing }>(`/marketplace/listings/${id}`);
+    return response.data;
+  },
+  createReview: async (listingId: string, rating: number, comment?: string) => {
+    const response = await buyerApi.post(`/marketplace/listings/${listingId}/reviews`, { rating, comment });
+    return response.data as { review: unknown; sellerRating: { avgRating: number | null; totalReviews: number } };
+  },
+  getReviews: async (listingId: string) => {
+    const response = await api.get(`/marketplace/listings/${listingId}/reviews`);
+    return response.data as {
+      reviews: Array<{ id: string; rating: number; comment: string; buyerName: string; createdAt: string }>;
+      sellerRating: { avgRating: number | null; totalReviews: number };
+    };
+  },
+};
+
+export const buyerAuthAPI = {
+  register: async (data: { name: string; email: string; phone: string; password: string; address?: Record<string, string> }) => {
+    const response = await api.post<{ token: string; buyer: Buyer }>('/buyer-auth/register', data);
+    return response.data;
+  },
+  login: async (email: string, password: string) => {
+    const response = await api.post<{ token: string; buyer: Buyer }>('/buyer-auth/login', { email, password });
+    return response.data;
+  },
+  getProfile: async () => {
+    const response = await buyerApi.get<{ buyer: Buyer }>('/buyer-auth/profile');
     return response.data;
   },
 };
@@ -488,6 +576,17 @@ export const ordersAPI = {
   },
   updateStatus: async (orderId: string, status: 'accepted' | 'delivered' | 'rejected') => {
     const response = await api.put<{ order: FarmerOrder }>(`/orders/${orderId}/status`, { status });
+    return response.data;
+  },
+};
+
+export const buyerOrdersAPI = {
+  create: async (listingId: string, quantity: number) => {
+    const response = await buyerApi.post<{ order: BuyerOrder }>('/orders', { listingId, quantity });
+    return response.data;
+  },
+  myOrders: async () => {
+    const response = await buyerApi.get<{ orders: BuyerOrder[] }>('/orders/my');
     return response.data;
   },
 };

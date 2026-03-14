@@ -167,6 +167,13 @@ export default function Home() {
                 >
                   Create Account
                 </button>
+
+                <button
+                  onClick={() => router.push('/buyer')}
+                  className="px-8 py-4 bg-amber-50 text-amber-800 font-bold text-lg rounded-xl border-2 border-amber-500 hover:bg-amber-100 transition-all duration-300 transform hover:scale-105 animate-fade-up stagger-4"
+                >
+                  Buyer Portal
+                </button>
               </div>
             </div>
           </section>
