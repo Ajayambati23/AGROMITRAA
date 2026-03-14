@@ -7,7 +7,8 @@ export function useTranslation() {
   
   const t = (key: TranslationKey): string => {
     const translation = translations[language] || translations.english;
-    return translation[key] || translations.english[key] || key;
+    const value = translation[key] ?? translations.english[key];
+    return typeof value === 'string' ? value : key;
   };
   
   return { t, language };
