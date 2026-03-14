@@ -557,10 +557,7 @@ const sampleCrops = [
 async function seedDatabase() {
   try {
     // Connect to MongoDB
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agromitra', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/agromitra');
     console.log('Connected to MongoDB');
 
     // Clear existing crops

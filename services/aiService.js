@@ -6,6 +6,11 @@ const { getTranslation, detectLanguage } = require('../utils/translations');
 const Crop = require('../models/Crop');
 const Calendar = require('../models/Calendar');
 
+const stripBom = (text) => {
+  if (typeof text !== 'string') return text;
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+};
+
 class AIService {
   constructor() {
     this.classifier = new natural.BayesClassifier();
@@ -51,7 +56,7 @@ class AIService {
       if (!file.endsWith('.json')) continue;
       const filePath = path.join(this.datasetsPath, file);
       try {
-        const data = fs.readFileSync(filePath, 'utf8');
+        const data = stripBom(fs.readFileSync(filePath, 'utf8'));
         const parsed = JSON.parse(data);
         const items = Array.isArray(parsed) ? parsed : (parsed.data || []);
         for (const item of items) {
@@ -76,7 +81,7 @@ class AIService {
     try {
       // 1) Load from trained-model.json if it exists
       if (fs.existsSync(this.modelPath)) {
-        const data = fs.readFileSync(this.modelPath, 'utf8');
+        const data = stripBom(fs.readFileSync(this.modelPath, 'utf8'));
         const parsed = JSON.parse(data);
         this.trainingData = Array.isArray(parsed) ? parsed : (parsed.data || []);
         this.trainingData = this.trainingData.filter(
