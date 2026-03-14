@@ -7,6 +7,48 @@ import { SOIL_TYPES } from '@/data/soilTypes';
 import { Search, Filter, Leaf, MapPin, TrendingUp } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 
+interface RecommendationMarketPrice {
+  current?: number | null;
+  min?: number | null;
+  max?: number | null;
+  unit?: string;
+  source?: string;
+  location?: string;
+}
+
+interface RecommendationCrop {
+  id: string;
+  name: string;
+  scientificName?: string;
+  description?: string;
+  source?: string;
+  locationMatch?: boolean;
+  suitability?: number;
+  region?: string;
+  seasons?: string[];
+  marketPrice?: RecommendationMarketPrice;
+}
+
+interface RecommendationErrorDetail {
+  field?: string;
+  value?: string;
+  message?: string;
+}
+
+interface RecommendationApiError {
+  response?: {
+    data?: {
+      message?: string;
+      details?: RecommendationErrorDetail[];
+    };
+  };
+  message?: string;
+}
+
+interface RecommendationResponse {
+  crops?: RecommendationCrop[];
+}
+
 // Indian states for location dropdown
 const INDIAN_STATES = [
   'Maharashtra',
@@ -26,7 +68,7 @@ const INDIAN_STATES = [
 
 export default function CropRecommendations() {
   const { state, dispatch } = useApp();
-  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [recommendations, setRecommendations] = useState<RecommendationCrop[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({
@@ -34,7 +76,7 @@ export default function CropRecommendations() {
     soilType: 'black',
     location: INDIAN_STATES[0],
   });
-  const [stateMarketPrices, setStateMarketPrices] = useState<any | null>(null);
+  const [stateMarketPrices, setStateMarketPrices] = useState<Record<string, RecommendationMarketPrice> | null>(null);
   const [pricesLoading, setPricesLoading] = useState(false);
 
   const handleGetRecommendations = async () => {
@@ -46,16 +88,17 @@ export default function CropRecommendations() {
         language: state.selectedLanguage,
       };
       console.log('Sending payload:', payload);
-      const response = await cropsAPI.recommend(payload);
+      const response = await cropsAPI.recommend(payload) as RecommendationResponse;
       setRecommendations(response.crops || []);
-    } catch (error: any) {
-      console.error('Failed to get recommendations:', error);
-      const errorDetails = error.response?.data?.details;
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to get recommendations';
+    } catch (error: unknown) {
+      const typedError = error as RecommendationApiError;
+      console.error('Failed to get recommendations:', typedError);
+      const errorDetails = typedError.response?.data?.details;
+      const errorMessage = typedError.response?.data?.message || typedError.message || 'Failed to get recommendations';
       
       let fullError = errorMessage;
       if (errorDetails) {
-        fullError += '\n' + errorDetails.map((e: any) => `${e.field}: ${e.value} - ${e.message}`).join('\n');
+        fullError += '\n' + errorDetails.map((e) => `${e.field}: ${e.value} - ${e.message}`).join('\n');
       }
       
       setError(fullError);
@@ -91,12 +134,12 @@ export default function CropRecommendations() {
         location: selectedState,
         language: state.selectedLanguage,
       };
-      const response = await cropsAPI.recommend(payload);
+      const response = await cropsAPI.recommend(payload) as RecommendationResponse;
       
       // Extract prices by crop name
-      const priceMap: any = {};
+      const priceMap: Record<string, RecommendationMarketPrice> = {};
       if (response.crops) {
-        response.crops.forEach((crop: any) => {
+        response.crops.forEach((crop) => {
           if (crop.marketPrice) {
             priceMap[crop.name] = crop.marketPrice;
           }

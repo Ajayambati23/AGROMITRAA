@@ -3,6 +3,22 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { User, ChatMessage, Crop, CalendarEvent } from '@/lib/api';
 
+type RegisterPayload = Partial<User> & { password: string };
+
+interface ValidationErrorItem {
+  msg?: string;
+}
+
+interface ApiErrorShape {
+  response?: {
+    data?: {
+      message?: string;
+      errors?: ValidationErrorItem[];
+    };
+  };
+  message?: string;
+}
+
 interface AppState {
   user: User | null;
   isAuthenticated: boolean;
@@ -73,7 +89,7 @@ interface AppContextType {
   state: AppState;
   dispatch: React.Dispatch<AppAction>;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: any) => Promise<void>;
+  register: (userData: RegisterPayload) => Promise<void>;
   logout: () => void;
   setLanguage: (language: string) => void;
   addChatMessage: (message: ChatMessage) => void;
@@ -134,11 +150,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       dispatch({ type: 'SET_USER', payload: response.user });
       dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-    } catch (error: any) {
-      const validationErrors = error?.response?.data?.errors;
+    } catch (error: unknown) {
+      const typedError = error as ApiErrorShape;
+      const validationErrors = typedError.response?.data?.errors;
       const message = Array.isArray(validationErrors) && validationErrors.length > 0
-        ? validationErrors.map((item: { msg?: string }) => item.msg).filter(Boolean).join('. ')
-        : error?.response?.data?.message || 'Login failed';
+        ? validationErrors.map((item) => item.msg).filter(Boolean).join('. ')
+        : typedError.response?.data?.message || typedError.message || 'Login failed';
       dispatch({ type: 'SET_ERROR', payload: message });
       throw new Error(message);
     } finally {
@@ -146,7 +163,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const register = async (userData: any) => {
+  const register = async (userData: RegisterPayload) => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'CLEAR_ERROR' });
@@ -159,9 +176,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       
       dispatch({ type: 'SET_USER', payload: response.user });
       dispatch({ type: 'SET_AUTHENTICATED', payload: true });
-    } catch (error: any) {
-      dispatch({ type: 'SET_ERROR', payload: error.response?.data?.message || 'Registration failed' });
-      throw error;
+    } catch (error: unknown) {
+      const typedError = error as ApiErrorShape;
+      const message = typedError.response?.data?.message || typedError.message || 'Registration failed';
+      dispatch({ type: 'SET_ERROR', payload: message });
+      throw new Error(message);
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
     }
