@@ -259,6 +259,7 @@ export default function CropRecommendations() {
           {recommendations.map((crop) => {
             const dp = stateMarketPrices?.[crop.name] ?? crop.marketPrice;
             const priceSource = dp?.source?.toString();
+            const seasons = crop.seasons ?? [];
             return (
               <div
                 key={crop.id}
@@ -343,9 +344,9 @@ export default function CropRecommendations() {
                       Region: <span className="font-medium text-gray-700 capitalize">{crop.region}</span>
                     </p>
                   )}
-                  {crop.seasons?.length > 0 && (
+                  {seasons.length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {crop.seasons.map((season: string) => (
+                      {seasons.map((season: string) => (
                         <span
                           key={season}
                           className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-lg font-medium"
