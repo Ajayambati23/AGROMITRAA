@@ -2,200 +2,110 @@
 
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
-import { cropsAPI, MarketCommodityPrice } from '@/lib/api';
+import { cropsAPI } from '@/lib/api';
 import { TrendingUp, DollarSign, RefreshCw } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 
 export default function MarketPrices() {
   const { state } = useApp();
-  const [prices, setPrices] = useState<MarketCommodityPrice[]>([]);
-  const [states, setStates] = useState<string[]>([]);
-  const [districts, setDistricts] = useState<string[]>([]);
-  const [markets, setMarkets] = useState<string[]>([]);
-  const [selectedState, setSelectedState] = useState<string>('');
-  const [selectedDistrict, setSelectedDistrict] = useState<string>('');
-  const [selectedMarket, setSelectedMarket] = useState<string>('');
-  const [isLoadingOptions, setIsLoadingOptions] = useState(false);
-  const [isLoadingPrices, setIsLoadingPrices] = useState(false);
+  const [prices, setPrices] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedState, setSelectedState] = useState<string>('');
 
-  const loadStates = async () => {
-    setIsLoadingOptions(true);
+  const INDIAN_STATES = [
+    'Maharashtra',
+    'Karnataka',
+    'Tamil Nadu',
+    'Telangana',
+    'Andhra Pradesh',
+    'West Bengal',
+    'Uttar Pradesh',
+    'Punjab',
+    'Haryana',
+    'Madhya Pradesh',
+    'Rajasthan',
+    'Bihar',
+    'Gujarat'
+  ];
+
+  const loadPrices = async (location?: string) => {
+    setIsLoading(true);
     setError(null);
     try {
-      const response = await cropsAPI.getMarketStates();
-      setStates(response?.states ?? []);
-    } catch (err: any) {
-      console.error('Failed to load market states:', err);
-      const message = err?.response?.data?.message || err?.message || 'Request failed';
-      setError(message);
-    } finally {
-      setIsLoadingOptions(false);
-    }
-  };
-
-  const loadDistricts = async (stateName: string) => {
-    setIsLoadingOptions(true);
-    setError(null);
-    try {
-      const response = await cropsAPI.getMarketDistricts(stateName);
-      setDistricts(response?.districts ?? []);
-    } catch (err: any) {
-      console.error('Failed to load districts:', err);
-      setDistricts([]);
-      const message = err?.response?.data?.message || err?.message || 'Request failed';
-      setError(message);
-    } finally {
-      setIsLoadingOptions(false);
-    }
-  };
-
-  const loadMarkets = async (stateName: string, districtName: string) => {
-    setIsLoadingOptions(true);
-    setError(null);
-    try {
-      const response = await cropsAPI.getMarketMandis(stateName, districtName);
-      setMarkets(response?.markets ?? []);
-    } catch (err: any) {
-      console.error('Failed to load markets:', err);
-      setMarkets([]);
-      const message = err?.response?.data?.message || err?.message || 'Request failed';
-      setError(message);
-    } finally {
-      setIsLoadingOptions(false);
-    }
-  };
-
-  const loadPricesByMarket = async (stateName: string, districtName: string, marketName: string) => {
-    setIsLoadingPrices(true);
-    setError(null);
-    try {
-      const response = await cropsAPI.getPricesByMandi({
-        state: stateName,
-        district: districtName,
-        market: marketName,
-        limit: 100
-      });
+      const response = await cropsAPI.getMarketPrices(state.selectedLanguage, 20, location);
       setPrices(response?.prices ?? []);
     } catch (err: any) {
-      console.error('Failed to load selected market prices:', err);
+      console.error('Failed to load market prices:', err);
       setPrices([]);
       const message = err?.response?.data?.message || err?.message || 'Request failed';
       const isNetworkError = !err?.response && (message?.includes('Network') || message?.includes('fetch'));
       setError(
         isNetworkError
-          ? 'Could not reach the server. Start backend with: npm run dev or node server.js'
+          ? 'Could not reach the server. Start the backend with: npm run dev (from project root) or node server.js'
           : message
       );
     } finally {
-      setIsLoadingPrices(false);
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadStates();
+    loadPrices(selectedState);
   }, [state.selectedLanguage]);
 
-  const formatPrice = (price: number | null | undefined, unit?: string) => {
+  useEffect(() => {
+    // Reload prices when selected state changes
+    loadPrices(selectedState);
+  }, [selectedState]);
+
+  const formatPrice = (price: number | null | undefined, unit: string) => {
     const num = price != null && typeof price === 'number' && !Number.isNaN(price) ? price : null;
     if (num === null) return 'Price not available';
-    const normalizedUnit = unit || 'per quintal';
-    if (normalizedUnit === 'per kg') return `Rs ${num}/kg`;
-    if (normalizedUnit === 'per quintal') return `Rs ${num}/quintal`;
-    if (normalizedUnit === 'per ton') return `Rs ${num}/ton`;
-    return `Rs ${num}/${normalizedUnit}`;
+    if (unit === 'per kg') return `Rs ${num}/kg`;
+    if (unit === 'per quintal') return `Rs ${num}/quintal`;
+    if (unit === 'per ton') return `Rs ${num}/ton`;
+    return `Rs ${num}/${unit}`;
   };
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="card">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <DollarSign className="w-6 h-6 text-green-600" />
             <h2 className="text-xl font-semibold text-gray-800">Market Prices</h2>
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center space-x-3">
             <select
               value={selectedState}
-              onChange={(e) => {
-                const nextState = e.target.value;
-                setSelectedState(nextState);
-                setSelectedDistrict('');
-                setSelectedMarket('');
-                setDistricts([]);
-                setMarkets([]);
-                setPrices([]);
-                if (nextState) loadDistricts(nextState);
-              }}
-              className="input-field min-w-[180px]"
-              disabled={isLoadingOptions}
+              onChange={(e) => setSelectedState(e.target.value)}
+              className="input-field mr-2"
             >
-              <option value="">Select State</option>
-              {states.map((s) => (
+              <option value="">All States</option>
+              {INDIAN_STATES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>
 
-            <select
-              value={selectedDistrict}
-              onChange={(e) => {
-                const nextDistrict = e.target.value;
-                setSelectedDistrict(nextDistrict);
-                setSelectedMarket('');
-                setMarkets([]);
-                setPrices([]);
-                if (selectedState && nextDistrict) loadMarkets(selectedState, nextDistrict);
-              }}
-              className="input-field min-w-[180px]"
-              disabled={!selectedState || isLoadingOptions}
-            >
-              <option value="">Select District</option>
-              {districts.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-
-            <select
-              value={selectedMarket}
-              onChange={(e) => {
-                const nextMarket = e.target.value;
-                setSelectedMarket(nextMarket);
-                setPrices([]);
-                if (selectedState && selectedDistrict && nextMarket) {
-                  loadPricesByMarket(selectedState, selectedDistrict, nextMarket);
-                }
-              }}
-              className="input-field min-w-[180px]"
-              disabled={!selectedDistrict || isLoadingOptions}
-            >
-              <option value="">Select Market</option>
-              {markets.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-
             <button
-              onClick={() => {
-                if (selectedState && selectedDistrict && selectedMarket) {
-                  loadPricesByMarket(selectedState, selectedDistrict, selectedMarket);
-                }
-              }}
-              disabled={isLoadingPrices || !selectedState || !selectedDistrict || !selectedMarket}
+              onClick={() => loadPrices(selectedState)}
+              disabled={isLoading}
               className="btn-secondary flex items-center space-x-2"
             >
-              <RefreshCw className={`w-4 h-4 ${isLoadingPrices ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </button>
           </div>
         </div>
-
         <p className="text-gray-600 mt-2">
-          Select state, district, and market to view current crop prices in that mandi.
+          Current market prices for agricultural commodities
         </p>
       </div>
 
-      {isLoadingPrices ? (
+      {/* Prices Grid */}
+      {isLoading ? (
         <div className="card text-center py-12">
           <LoadingSpinner size="lg" />
           <p className="text-gray-600 mt-4">Loading market prices...</p>
@@ -203,25 +113,21 @@ export default function MarketPrices() {
       ) : prices.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {prices.map((price, index) => (
-            <div
-              key={`${price.cropName}-${price.variety || 'na'}-${price.arrivalDate || index}`}
-              className="card hover:shadow-md transition-shadow flex flex-col"
-            >
+            <div key={price.id} className="card hover:shadow-md transition-shadow flex flex-col">
+              {/* Header: commodity name + rank */}
               <div className="flex items-start justify-between gap-2 mb-4">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-11 h-11 rounded-xl bg-green-100 flex items-center justify-center flex-shrink-0">
                     <TrendingUp className="w-6 h-6 text-green-600" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-lg font-bold text-gray-800 truncate">{price.cropName}</h3>
-                    {price.variety && (
-                      <p className="text-xs text-gray-500 truncate">{price.variety}</p>
-                    )}
+                    <h3 className="text-lg font-bold text-gray-800 truncate">{price.name}</h3>
                     <p className="text-xs text-gray-500">#{index + 1} in market</p>
                   </div>
                 </div>
               </div>
 
+              {/* Main: price – prominent */}
               <div className="rounded-xl bg-gray-50 border border-gray-200 p-4 mb-4">
                 <p className="label-caps text-gray-500 mb-1">Current Price</p>
                 <p className={`text-2xl font-bold ${price.price != null && typeof price.price === 'number' ? 'text-green-700' : 'text-amber-600'}`}>
@@ -231,16 +137,21 @@ export default function MarketPrices() {
                   {price.source?.includes('Agmarknet') && (
                     <span className="badge-success">Live</span>
                   )}
-                  {price.marketName && (
-                    <span className="text-xs text-blue-600 font-medium">{price.marketName}</span>
+                  {price.source?.includes('Cached') && (
+                    <span className="badge-pending">Cached</span>
+                  )}
+                  {price.source && !price.source.includes('Agmarknet') && !price.source.includes('Cached') && (
+                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded">Estimated</span>
+                  )}
+                  {price.location && (
+                    <span className="text-xs text-blue-600 font-medium">{price.location}</span>
                   )}
                 </div>
               </div>
 
+              {/* Footer: last updated */}
               <div className="mt-auto pt-3 border-t border-gray-100">
-                <p className="text-xs text-gray-500">
-                  Last updated: {price.arrivalDate || 'N/A'}
-                </p>
+                <p className="text-xs text-gray-500">Last updated: Today</p>
               </div>
             </div>
           ))}
@@ -249,20 +160,14 @@ export default function MarketPrices() {
         <div className="card text-center py-12">
           <DollarSign className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">
-            {error ? 'Could not load market prices' : 'Select a market to view prices'}
+            {error ? 'Could not load market prices' : 'No market data available'}
           </h3>
           <p className="text-gray-500">
-            {error || 'Choose State, District, and Market to list all available crop prices.'}
+            {error || 'Unable to load current market prices. Please try again later.'}
           </p>
           {error && (
             <button
-              onClick={() => {
-                if (selectedState && selectedDistrict && selectedMarket) {
-                  loadPricesByMarket(selectedState, selectedDistrict, selectedMarket);
-                } else {
-                  loadStates();
-                }
-              }}
+              onClick={() => loadPrices(selectedState)}
               className="btn-secondary mt-4"
             >
               Retry
@@ -271,6 +176,7 @@ export default function MarketPrices() {
         </div>
       )}
 
+      {/* Market Info */}
       <div className="card bg-blue-50 border-blue-200">
         <div className="flex items-start space-x-3">
           <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -279,8 +185,9 @@ export default function MarketPrices() {
           <div>
             <h3 className="font-semibold text-blue-800 mb-2">Market Information</h3>
             <p className="text-sm text-blue-700">
-              Prices are fetched from Agmarknet (data.gov.in) for the selected market.
-              Values can vary by grade, variety, and daily arrivals.
+              Prices are updated regularly from APMC (Agricultural Produce Market Committee)
+              and other reliable sources. These prices may vary based on location, quality,
+              and market conditions.
             </p>
           </div>
         </div>
