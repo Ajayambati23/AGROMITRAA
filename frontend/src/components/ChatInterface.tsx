@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
 import { useTranslation } from '@/hooks/useTranslation';
 import { chatAPI } from '@/lib/api';
+import { translations } from '@/lib/translations';
 import { Send, Mic, MicOff, Bot, User, Play, Square, ImagePlus, X } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
 import ReactMarkdown from 'react-markdown';
@@ -35,6 +36,9 @@ interface WindowWithSpeechRecognition extends Window {
 export default function ChatInterface() {
   const { state, addChatMessage } = useApp();
   const { t } = useTranslation();
+  const languageKey = state.selectedLanguage as keyof typeof translations;
+  const exampleQuestions =
+    translations[languageKey]?.exampleQuestions || translations.english.exampleQuestions;
   const [message, setMessage] = useState('');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -319,7 +323,7 @@ export default function ChatInterface() {
             <div className="mt-4 text-sm text-gray-400 max-w-sm mx-auto">
               <p>{t('tryAsking')}</p>
               <ul className="mt-3 space-y-2 text-left">
-                {t('exampleQuestions').map((question, index) => (
+                {exampleQuestions.map((question, index) => (
                   <li key={index} className="flex items-start gap-2"><span className="text-green-500">•</span> "{question}"</li>
                 ))}
               </ul>
@@ -520,3 +524,4 @@ export default function ChatInterface() {
     </div>
   );
 }
+
