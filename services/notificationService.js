@@ -12,6 +12,14 @@ class NotificationService {
     this.initializeServices();
   }
 
+  toPlainText(message) {
+    return String(message || '')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]*>/g, '')
+      .trim();
+  }
+
   initializeServices() {
     // Initialize Twilio for SMS
     if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
@@ -87,15 +95,30 @@ class NotificationService {
         from: process.env.EMAIL_USER,
         to: email,
         subject: subject,
-        html: message
+        html: message,
+        text: this.toPlainText(message)
       };
 
       const result = await this.emailTransporter.sendMail(mailOptions);
-      console.log('Email sent successfully:', result.messageId);
-      return { success: true, messageId: result.messageId };
+      const deliveryInfo = {
+        success: true,
+        messageId: result.messageId,
+        to: email,
+        subject,
+        accepted: result.accepted || [],
+        rejected: result.rejected || [],
+        response: result.response || ''
+      };
+      console.log('Email sent successfully:', JSON.stringify(deliveryInfo));
+      return deliveryInfo;
     } catch (error) {
       console.error('Email sending error:', error);
-      return { success: false, error: error.message };
+      return {
+        success: false,
+        error: error.message,
+        to: email,
+        subject
+      };
     }
   }
 

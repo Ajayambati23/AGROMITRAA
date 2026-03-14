@@ -72,7 +72,15 @@ router.post(
         language
       );
 
-      res.json({ success: true, result });
+      res.json({
+        success: true,
+        recipient: {
+          name: user.name,
+          email: user.email || null,
+          phone: user.phone || null
+        },
+        result
+      });
     } catch (error) {
       console.error('Farmer alert route error:', error);
       res.status(500).json({ success: false, error: 'Error sending farmer alert' });
