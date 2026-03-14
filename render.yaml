@@ -1,0 +1,91 @@
+services:
+  - type: web
+    name: agromitra-backend
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MARKET_MODEL
+        value: gpt-4o-mini
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: WEATHER_API_KEY
+        sync: false
+      - key: AGMARKNET_API_KEY
+        sync: false
+      - key: AGMARKNET_TIMEOUT_MS
+        value: "12000"
+      - key: AGMARKNET_RETRIES
+        value: "1"
+      - key: MAX_FILE_SIZE
+        value: "10485760"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+      - key: AI_MODEL_OPENAI_ENABLED
+        value: "true"
+      - key: AI_MODEL_LOCAL_ENABLED
+        value: "true"
+      - key: AI_MODEL_DEFAULT
+        value: openai
+      - key: TRAINING_AUTO_RETRAIN
+        value: "true"
+      - key: TRAINING_DATA_PATH
+        value: ./models/trained-model.json
+      - key: TRAINING_BACKUP_ENABLED
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+      - key: BCRYPT_ROUNDS
+        value: "12"
+      - key: API_VERSION
+        value: v1
+      - key: API_PREFIX
+        value: /api
+      - key: FEATURE_VOICE_ENABLED
+        value: "true"
+      - key: FEATURE_NOTIFICATIONS_ENABLED
+        value: "true"
+      - key: FEATURE_TRAINING_ENABLED
+        value: "true"
+      - key: FEATURE_CALENDAR_ENABLED
+        value: "true"
+      - key: FEATURE_MARKET_PRICES_ENABLED
+        value: "true"
+      - key: DEBUG_MODE
+        value: "false"
+      - key: HOT_RELOAD
+        value: "false"
+      - key: VERBOSE_LOGGING
+        value: "false"
+      - key: REMINDER_EVERY_MINUTES
+        value: "5"
+      - key: OVERDUE_EVERY_MINUTES
+        value: "5"
+      - key: ALERTS_TIMEZONE
+        value: Asia/Kolkata

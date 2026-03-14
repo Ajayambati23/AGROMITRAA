@@ -5,7 +5,7 @@ const OpenAI = require('openai');
 
 // Agmarknet API - Data.gov endpoint (user-provided)
 const AGMARKNET_API_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
-const AGMARKNET_API_KEY = process.env.AGMARKNET_API_KEY || '579b464db66ec23bdd000001b1c23a91';
+const AGMARKNET_API_KEY = String(process.env.AGMARKNET_API_KEY || '').trim();
 const AGMARKNET_TIMEOUT_MS = Number(process.env.AGMARKNET_TIMEOUT_MS || 12000);
 const AGMARKNET_RETRIES = Math.max(0, Number(process.env.AGMARKNET_RETRIES || 1));
 const LOG_AGMARKNET_ERRORS = String(process.env.LOG_AGMARKNET_ERRORS || '').toLowerCase() === 'true';
@@ -219,6 +219,10 @@ const pickTopMandiRecord = (records, stateName = null) => {
 };
 
 const fetchFromAgmarknet = async (commodity, mandiName, stateName = null) => {
+  if (!AGMARKNET_API_KEY) {
+    console.error('AGMARKNET_API_KEY is missing; cannot call Agmarknet API');
+    return null;
+  }
   const paramsBase = {
     'api-key': AGMARKNET_API_KEY,
     format: 'json',
@@ -290,12 +294,26 @@ const fetchFromAgmarknet = async (commodity, mandiName, stateName = null) => {
 
     return null;
   } catch (error) {
-    if (LOG_AGMARKNET_ERRORS) {
-      const status = error?.response?.status;
-      const code = error?.code;
-      const message = error?.message || String(error);
-      console.error('Agmarknet API request failed', { status: status || null, code: code || null, message });
+    const status = error?.response?.status;
+    const code = error?.code;
+    const message = error?.message || String(error);
+    const shouldLog = LOG_AGMARKNET_ERRORS || status === 401 || status === 403;
+
+    if (shouldLog) {
+      console.error('Agmarknet API request failed', {
+        commodity,
+        stateName: stateName || null,
+        mandiName: mandiName || null,
+        status: status || null,
+        code: code || null,
+        message
+      });
     }
+
+    if (status === 401 || status === 403) {
+      console.error('Agmarknet API authentication failed. Check AGMARKNET_API_KEY in .env');
+    }
+
     return null;
   }
 };

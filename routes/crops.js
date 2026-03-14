@@ -1,4 +1,5 @@
 const express = require('express');
+const axios = require('axios');
 const { body, validationResult } = require('express-validator');
 const Crop = require('../models/Crop');
 const { getTranslation } = require('../utils/translations');
@@ -7,6 +8,73 @@ const { getMarketPrice } = require('../services/marketPriceService');
 const OpenAI = require('openai');
 
 const router = express.Router();
+const AGMARKNET_API_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
+const AGMARKNET_API_KEY = String(process.env.AGMARKNET_API_KEY || '').trim();
+const AGMARKNET_TIMEOUT_MS = Number(process.env.AGMARKNET_TIMEOUT_MS || 12000);
+
+const normalizeField = (value) => String(value || '').trim();
+
+const parsePrice = (value) => {
+  if (value == null) return null;
+  const num = Number(String(value).replace(/,/g, '').trim());
+  return Number.isFinite(num) ? num : null;
+};
+
+const parseDateMs = (value) => {
+  if (!value) return 0;
+  const direct = new Date(value);
+  if (!Number.isNaN(direct.getTime())) return direct.getTime();
+  const match = String(value).match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (!match) return 0;
+  const day = Number(match[1]);
+  const month = Number(match[2]) - 1;
+  const year = Number(match[3].length === 2 ? `20${match[3]}` : match[3]);
+  const dt = new Date(year, month, day);
+  return Number.isNaN(dt.getTime()) ? 0 : dt.getTime();
+};
+
+const assertAgmarknetConfigured = (res) => {
+  if (AGMARKNET_API_KEY) return true;
+  res.status(500).json({ message: 'AGMARKNET_API_KEY is missing on server' });
+  return false;
+};
+
+const fetchAgmarknetRecords = async ({ filters = {}, maxRecords = 1000 }) => {
+  const pageSize = 100;
+  const records = [];
+  let offset = 0;
+
+  while (records.length < maxRecords) {
+    const params = {
+      'api-key': AGMARKNET_API_KEY,
+      format: 'json',
+      limit: Math.min(pageSize, maxRecords - records.length),
+      offset
+    };
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value != null && String(value).trim()) {
+        params[`filters[${key}]`] = String(value).trim();
+      }
+    });
+
+    const response = await axios.get(AGMARKNET_API_URL, {
+      params,
+      timeout: AGMARKNET_TIMEOUT_MS
+    });
+
+    const batch = Array.isArray(response?.data?.records) ? response.data.records : [];
+    if (batch.length === 0) break;
+    records.push(...batch);
+    offset += batch.length;
+
+    const total = Number(response?.data?.total);
+    if (Number.isFinite(total) && offset >= total) break;
+    if (batch.length < pageSize) break;
+  }
+
+  return records;
+};
 
 // Check internet connectivity
 const checkInternetConnection = async () => {
@@ -297,6 +365,170 @@ router.get('/market-prices', async (req, res) => {
   } catch (error) {
     console.error('Market prices error:', error);
     res.status(500).json({ message: 'Error fetching market prices', error: error.message });
+  }
+});
+
+// Get available states from Agmarknet
+router.get('/market-locations/states', async (req, res) => {
+  try {
+    if (!assertAgmarknetConfigured(res)) return;
+
+    const records = await fetchAgmarknetRecords({ maxRecords: 3000 });
+    const states = Array.from(
+      new Set(
+        records
+          .map((r) => normalizeField(r.state || r.state_name))
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+
+    res.json({ states });
+  } catch (error) {
+    console.error('Market states error:', error.message || error);
+    res.status(500).json({ message: 'Error fetching states from Agmarknet' });
+  }
+});
+
+// Get available districts for a selected state
+router.get('/market-locations/districts', async (req, res) => {
+  try {
+    if (!assertAgmarknetConfigured(res)) return;
+    const state = normalizeField(req.query.state);
+    if (!state) {
+      return res.status(400).json({ message: 'state is required' });
+    }
+
+    let records = await fetchAgmarknetRecords({
+      filters: { state },
+      maxRecords: 3000
+    });
+
+    if (records.length === 0) {
+      records = await fetchAgmarknetRecords({
+        filters: { state_name: state },
+        maxRecords: 3000
+      });
+    }
+
+    const districts = Array.from(
+      new Set(
+        records
+          .map((r) => normalizeField(r.district))
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+
+    res.json({ state, districts });
+  } catch (error) {
+    console.error('Market districts error:', error.message || error);
+    res.status(500).json({ message: 'Error fetching districts from Agmarknet' });
+  }
+});
+
+// Get available markets for selected state and district
+router.get('/market-locations/markets', async (req, res) => {
+  try {
+    if (!assertAgmarknetConfigured(res)) return;
+    const state = normalizeField(req.query.state);
+    const district = normalizeField(req.query.district);
+
+    if (!state || !district) {
+      return res.status(400).json({ message: 'state and district are required' });
+    }
+
+    let records = await fetchAgmarknetRecords({
+      filters: { state, district },
+      maxRecords: 3000
+    });
+
+    if (records.length === 0) {
+      records = await fetchAgmarknetRecords({
+        filters: { state_name: state, district },
+        maxRecords: 3000
+      });
+    }
+
+    const markets = Array.from(
+      new Set(
+        records
+          .map((r) => normalizeField(r.market_name || r.market))
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+
+    res.json({ state, district, markets });
+  } catch (error) {
+    console.error('Market list error:', error.message || error);
+    res.status(500).json({ message: 'Error fetching markets from Agmarknet' });
+  }
+});
+
+// Get crop prices for a selected market
+router.get('/market-prices/by-market', async (req, res) => {
+  try {
+    if (!assertAgmarknetConfigured(res)) return;
+    const state = normalizeField(req.query.state);
+    const district = normalizeField(req.query.district);
+    const market = normalizeField(req.query.market);
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 100)));
+
+    if (!state || !district || !market) {
+      return res.status(400).json({ message: 'state, district and market are required' });
+    }
+
+    let records = await fetchAgmarknetRecords({
+      filters: { state, district, market_name: market },
+      maxRecords: 2000
+    });
+
+    if (records.length === 0) {
+      records = await fetchAgmarknetRecords({
+        filters: { state_name: state, district, market_name: market },
+        maxRecords: 2000
+      });
+    }
+
+    const byCommodity = new Map();
+    for (const record of records) {
+      const commodity = normalizeField(record.commodity || record.commodity_name);
+      if (!commodity) continue;
+      const arrivalMs = parseDateMs(record.arrival_date);
+      const modal = parsePrice(record.modal_price);
+      const min = parsePrice(record.min_price);
+      const max = parsePrice(record.max_price);
+      const price = modal ?? max ?? min;
+      if (price == null) continue;
+
+      const normalized = {
+        cropName: commodity,
+        variety: normalizeField(record.variety || record.variety_name) || null,
+        price,
+        min,
+        max,
+        unit: 'per quintal',
+        currency: 'INR',
+        arrivalDate: record.arrival_date || null,
+        marketName: normalizeField(record.market_name || record.market) || market,
+        district: normalizeField(record.district) || district,
+        state: normalizeField(record.state || record.state_name) || state,
+        source: 'Agmarknet'
+      };
+
+      const existing = byCommodity.get(commodity);
+      if (!existing || arrivalMs > existing.arrivalMs) {
+        byCommodity.set(commodity, { arrivalMs, payload: normalized });
+      }
+    }
+
+    const prices = Array.from(byCommodity.values())
+      .sort((a, b) => b.arrivalMs - a.arrivalMs)
+      .slice(0, limit)
+      .map((entry) => entry.payload);
+
+    res.json({ state, district, market, count: prices.length, prices });
+  } catch (error) {
+    console.error('Market by-market prices error:', error.message || error);
+    res.status(500).json({ message: 'Error fetching selected market prices' });
   }
 });
 
