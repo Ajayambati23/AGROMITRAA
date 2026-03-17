@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { useTranslation } from '@/hooks/useTranslation';
 import { cropsAPI } from '@/lib/api';
 import { SOIL_TYPES } from '@/data/soilTypes';
 import { Search, Filter, Leaf, MapPin, TrendingUp } from 'lucide-react';
@@ -68,6 +69,7 @@ const INDIAN_STATES = [
 
 export default function CropRecommendations() {
   const { state, dispatch } = useApp();
+  const { t } = useTranslation();
   const [recommendations, setRecommendations] = useState<RecommendationCrop[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export default function CropRecommendations() {
       const typedError = error as RecommendationApiError;
       console.error('Failed to get recommendations:', typedError);
       const errorDetails = typedError.response?.data?.details;
-      const errorMessage = typedError.response?.data?.message || typedError.message || 'Failed to get recommendations';
+      const errorMessage = typedError.response?.data?.message || typedError.message || t('getRecommendations');
       
       let fullError = errorMessage;
       if (errorDetails) {
@@ -161,29 +163,29 @@ export default function CropRecommendations() {
       <div className="card">
         <div className="flex items-center space-x-3 mb-4">
           <Filter className="w-6 h-6 text-blue-600" />
-          <h2 className="text-xl font-semibold text-gray-800">Crop Recommendations</h2>
+          <h2 className="text-xl font-semibold text-gray-800">{t('cropRecommendations')}</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Season
+              {t('season')}
             </label>
             <select
               value={filters.season}
               onChange={(e) => handleFilterChange('season', e.target.value)}
               className="input-field"
             >
-              <option value="kharif">Kharif (Monsoon)</option>
-              <option value="rabi">Rabi (Winter)</option>
-              <option value="zaid">Zaid (Summer)</option>
-              <option value="year-round">Year Round</option>
+              <option value="kharif">{t('kharifMonsoon')}</option>
+              <option value="rabi">{t('rabiWinter')}</option>
+              <option value="zaid">{t('zaidSummer')}</option>
+              <option value="year-round">{t('yearRound')}</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Soil Type
+              {t('soilType')}
             </label>
             <select
               value={filters.soilType}
@@ -200,7 +202,7 @@ export default function CropRecommendations() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Location
+              {t('location')}
             </label>
             <select
               value={filters.location}
@@ -214,7 +216,7 @@ export default function CropRecommendations() {
               ))}
             </select>
             {pricesLoading && filters.location && (
-              <p className="text-xs text-gray-500 mt-1">Loading prices...</p>
+              <p className="text-xs text-gray-500 mt-1">{t('loadingPrices')}</p>
             )}
           </div>
 
@@ -229,7 +231,7 @@ export default function CropRecommendations() {
               ) : (
                 <>
                   <Search className="w-4 h-4 mr-2" />
-                  Get Recommendations
+                  {t('getRecommendations')}
                 </>
               )}
             </button>
@@ -241,7 +243,7 @@ export default function CropRecommendations() {
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start">
           <div className="flex-1">
-            <p className="font-medium">Error</p>
+            <p className="font-medium">{t('error')}</p>
             <p className="text-sm whitespace-pre-wrap">{error}</p>
           </div>
           <button
@@ -286,7 +288,7 @@ export default function CropRecommendations() {
                       <span className="badge-ai">AI</span>
                     )}
                     {crop.locationMatch && (
-                      <span className="badge-success" title="Matches your location">Local</span>
+                      <span className="badge-success" title={t('location')}>{t('localMatch')}</span>
                     )}
                   </div>
                 </div>
@@ -298,19 +300,19 @@ export default function CropRecommendations() {
 
                 {/* 3. Market price – main metric, clear block */}
                 <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 mb-4">
-                  <p className="label-caps text-gray-500 mb-1">Market Price</p>
+                  <p className="label-caps text-gray-500 mb-1">{t('marketPrices')}</p>
                   <div className="flex items-baseline justify-between gap-2 flex-wrap">
                     <span className="price-cell text-xl">
                       ₹{dp?.current ?? '—'} {dp?.unit ? `/${dp.unit}` : ''}
                     </span>
-                    {priceSource?.includes('Agmarknet') && (
-                      <span className="text-xs font-medium text-green-600">Live</span>
+                    {priceSource?.includes('eNAM') && (
+                      <span className="text-xs font-medium text-green-600">{t('live')}</span>
                     )}
                     {priceSource?.includes('Cached') && (
-                      <span className="text-xs font-medium text-orange-600">Cached</span>
+                      <span className="text-xs font-medium text-orange-600">{t('cached')}</span>
                     )}
                     {priceSource?.includes('Mock') && (
-                      <span className="text-xs font-medium text-gray-500">Estimated</span>
+                      <span className="text-xs font-medium text-gray-500">{t('estimated')}</span>
                     )}
                   </div>
                   {dp?.min != null && dp?.max != null && (
@@ -326,7 +328,7 @@ export default function CropRecommendations() {
                 {/* 4. Suitability bar */}
                 <div className="mb-4">
                   <div className="flex items-center justify-between text-sm mb-1">
-                    <span className="text-gray-600">Suitability</span>
+                    <span className="text-gray-600">{t('suitability')}</span>
                     <span className="font-semibold text-gray-800">{crop.suitability ?? 0}%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2.5">
@@ -341,7 +343,7 @@ export default function CropRecommendations() {
                 <div className="mt-auto space-y-2">
                   {crop.region && (
                     <p className="text-xs text-gray-500">
-                      Region: <span className="font-medium text-gray-700 capitalize">{crop.region}</span>
+                      {t('region')}: <span className="font-medium text-gray-700 capitalize">{crop.region}</span>
                     </p>
                   )}
                   {seasons.length > 0 && (
@@ -368,10 +370,10 @@ export default function CropRecommendations() {
         <div className="card text-center py-12">
           <Leaf className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">
-            No recommendations yet
+            {t('noRecommendationsYet')}
           </h3>
           <p className="text-gray-500">
-            Use the filters above to get personalized crop recommendations based on your location and preferences.
+            {t('recommendationsHint')}
           </p>
         </div>
       )}

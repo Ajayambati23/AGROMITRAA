@@ -259,7 +259,7 @@ export default function Calendar() {
               <CalendarIcon className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-gray-800">Farming Calendar</h2>
+              <h2 className="text-xl font-semibold text-gray-800">{t('farmingCalendar')}</h2>
               <p className="text-sm text-gray-600 mt-0.5">
                 Crop-specific timelines · Irrigation, fertilizing, harvest by crop
               </p>
@@ -271,7 +271,7 @@ export default function Calendar() {
               className="btn-primary flex items-center space-x-2 shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Crop</span>
+              <span>{t('addCrop')}</span>
             </button>
           )}
         </div>
@@ -280,13 +280,13 @@ export default function Calendar() {
       {/* Create Calendar Form */}
       {showCreateForm && state.isAuthenticated && (
         <div className="card border border-green-100">
-          <h3 className="text-lg font-semibold text-gray-800 mb-1">Add New Crop to Calendar</h3>
-          <p className="text-sm text-gray-500 mb-4">Harvest duration is set per crop (e.g. Rice ~120 days, Tomato ~90 days).</p>
+          <h3 className="text-lg font-semibold text-gray-800 mb-1">{t('addNewCropToCalendar')}</h3>
+          <p className="text-sm text-gray-500 mb-4">{t('harvestDurationNote')}</p>
           <form onSubmit={handleCreateCalendar} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Crop
+                  {t('selectCrop')}
                 </label>
                 <select
                   value={newCalendar.cropId}
@@ -294,7 +294,7 @@ export default function Calendar() {
                   className="input-field"
                   required
                 >
-                  <option value="">Choose a crop</option>
+                  <option value="">{t('chooseCrop')}</option>
                   {state.crops.map((crop) => (
                     <option key={crop.id} value={crop.id}>
                       {crop.name}
@@ -305,7 +305,7 @@ export default function Calendar() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Planting Date
+                  {t('plantingDate')}
                 </label>
                 <input
                   type="date"
@@ -319,14 +319,14 @@ export default function Calendar() {
 
             <div className="flex gap-3">
               <button type="submit" className="btn-primary">
-                Create Calendar
+                {t('createCalendarAction')}
               </button>
               <button
                 type="button"
                 onClick={() => setShowCreateForm(false)}
                 className="btn-secondary"
               >
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </form>
@@ -419,7 +419,7 @@ export default function Calendar() {
         isLoading ? (
           <div className="card text-center py-12">
             <LoadingSpinner size="lg" />
-            <p className="text-gray-600 mt-4">Loading your farming calendars...</p>
+            <p className="text-gray-600 mt-4">{t('loadingYourFarmingCalendars')}</p>
           </div>
         ) : calendars.length > 0 ? (
           <div className="space-y-8">
@@ -489,7 +489,7 @@ export default function Calendar() {
                     {/* Progress bar */}
                     <div className="mt-4">
                       <div className="flex justify-between text-xs text-gray-500 mb-1">
-                        <span>Progress</span>
+                        <span>{t('progress')}</span>
                         <span>{completedCount}/{totalCount} activities</span>
                       </div>
                       <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -504,7 +504,7 @@ export default function Calendar() {
                     <div className="flex flex-wrap gap-3 mt-3 text-sm">
                       <span className="inline-flex items-center gap-1.5 text-green-600">
                         <CheckCircle className="w-4 h-4" />
-                        {completedCount} done
+                        {completedCount} {t('done').toLowerCase()}
                       </span>
                       <span className="inline-flex items-center gap-1.5 text-amber-600">
                         <Clock className="w-4 h-4" />
@@ -539,13 +539,13 @@ export default function Calendar() {
 
                   <div className="mt-4 pt-4 border-t border-gray-100">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-gray-700">Quick actions</p>
+                      <p className="text-sm font-medium text-gray-700">{t('quickActions')}</p>
                       <button
                         type="button"
                         onClick={() => setAddForCalendarId(addForCalendarId === calendar.id ? null : calendar.id)}
                         className="text-xs px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 font-medium hover:bg-blue-200"
                       >
-                        {addForCalendarId === calendar.id ? 'Cancel add' : 'Add activity'}
+                        {addForCalendarId === calendar.id ? t('cancelAdd') : t('addActivity')}
                       </button>
                     </div>
 
@@ -562,7 +562,7 @@ export default function Calendar() {
                             disabled={completing === act.id}
                             className="text-xs px-3 py-1.5 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200 disabled:opacity-50"
                           >
-                            {completing === act.id ? 'Saving...' : 'Mark complete'}
+                            {completing === act.id ? t('saving') : t('markComplete')}
                           </button>
                           <button
                             type="button"
@@ -570,7 +570,7 @@ export default function Calendar() {
                             disabled={deletingId === act.id}
                             className="text-xs px-3 py-1.5 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200 disabled:opacity-50"
                           >
-                            {deletingId === act.id ? 'Deleting...' : 'Delete'}
+                            {deletingId === act.id ? t('deleting') : t('delete')}
                           </button>
                         </div>
                       </div>
@@ -598,13 +598,13 @@ export default function Calendar() {
                         />
                         <input
                           type="text"
-                          placeholder="Activity name"
+                          placeholder={t('activityName')}
                           value={newActivity.name}
                           onChange={(e) => setNewActivity((p) => ({ ...p, name: e.target.value }))}
                           className="input-field md:col-span-2"
                         />
                         <textarea
-                          placeholder="Description (optional)"
+                          placeholder={t('descriptionOptional')}
                           value={newActivity.description}
                           onChange={(e) => setNewActivity((p) => ({ ...p, description: e.target.value }))}
                           className="input-field md:col-span-2 min-h-[70px]"
@@ -614,7 +614,7 @@ export default function Calendar() {
                           onClick={() => handleAddActivity(calendar.id)}
                           className="btn-primary"
                         >
-                          Save Activity
+                          {t('saveActivity')}
                         </button>
                       </div>
                     )}
@@ -630,7 +630,7 @@ export default function Calendar() {
                 <CalendarIcon className="w-8 h-8 text-green-500" />
               </div>
               <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                No calendars yet
+                {t('noCalendarsYet')}
               </h3>
               <p className="text-gray-500 mb-4 max-w-sm mx-auto">
                 Add a crop and planting date. Each crop gets its own harvest timeline (e.g. 90–120 days).
@@ -639,13 +639,13 @@ export default function Calendar() {
                 onClick={() => setShowCreateForm(true)}
                 className="btn-primary"
               >
-                Create Calendar
+                {t('createCalendarAction')}
               </button>
             </div>
 
             {/* Demo */}
             <div className="card border border-gray-100">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">How it works</h3>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">{t('howItWorks')}</h3>
               <p className="text-gray-600 mb-6">
                 Your calendar shows crop-specific activities and harvest dates. Durations come from crop data and AI when needed.
               </p>
@@ -675,10 +675,10 @@ export default function Calendar() {
         <div className="card text-center py-12">
           <CalendarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">
-            Login Required
+            {t('loginRequired')}
           </h3>
           <p className="text-gray-500">
-            Please login to access your farming calendar and track activities.
+            {t('loginRequiredCalendarHint')}
           </p>
         </div>
       )}

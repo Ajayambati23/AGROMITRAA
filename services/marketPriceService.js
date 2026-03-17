@@ -3,16 +3,19 @@ const MarketPrice = require('../models/MarketPrice');
 const Crop = require('../models/Crop');
 const OpenAI = require('openai');
 
-// Agmarknet API - Data.gov endpoint (user-provided)
-const AGMARKNET_API_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
-const AGMARKNET_API_KEY = String(process.env.AGMARKNET_API_KEY || '').trim();
-const AGMARKNET_TIMEOUT_MS = Number(process.env.AGMARKNET_TIMEOUT_MS || 12000);
-const AGMARKNET_RETRIES = Math.max(0, Number(process.env.AGMARKNET_RETRIES || 1));
-const LOG_AGMARKNET_ERRORS = String(process.env.LOG_AGMARKNET_ERRORS || '').toLowerCase() === 'true';
+const ENAM_LIVE_PRICE_PAGE_URL = 'https://enam.gov.in/web/dashboard/live_price';
+const ENAM_TRADE_DATA_URL = 'https://enam.gov.in/web/Liveprice_ctrl/trade_data_list';
+const ENAM_TIMEOUT_MS = Number(process.env.ENAM_TIMEOUT_MS || 12000);
+const ENAM_CACHE_TTL_MS = Number(process.env.ENAM_CACHE_TTL_MS || 5 * 60 * 1000);
+const ENAM_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 const OPENAI_PRICE_MODEL = process.env.OPENAI_MARKET_MODEL || 'gpt-4o-mini';
 const openaiClient = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+const enamStateCache = new Map();
 
-// Location to Mandi code mapping (for Agmarknet API)
+const normalizeMarketKey = (value) => String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ');
+const normalizeMarketCompactKey = (value) => normalizeMarketKey(value).replace(/\s+/g, '');
+
+// Location hints used for fallback naming and cache refresh
 const locationToMandiCode = {
   'Maharashtra': 'Bombay',
   'Karnataka': 'Bangalore',
@@ -30,7 +33,7 @@ const locationToMandiCode = {
 };
 
 /**
- * Alternative provider fallback when Agmarknet fails
+ * Alternative provider fallback when live mandi data fails
  * This simulates a real-time provider by using cached All-India values or mock data
  * @param {string} cropName - crop name (used for cache lookup; cache is keyed by cropName)
  * @param {string} commodity - commodity name for API/mock (e.g. Rice, Brinjal)
@@ -139,7 +142,7 @@ const locationPriceVariation = {
 };
 
 /**
- * Fetch price from Agmarknet API (Data.gov)
+ * Parse numeric values from live mandi sources
  */
 const parseNumeric = (value) => {
   if (value == null) return null;
@@ -160,166 +163,114 @@ const parseArrivalDate = (value) => {
   return Number.isNaN(dt.getTime()) ? 0 : dt.getTime();
 };
 
-const normalizeAgmarknetRecord = (record) => {
-  if (!record) return null;
-  const modal = parseNumeric(record.modal_price);
-  const max = parseNumeric(record.max_price);
-  const min = parseNumeric(record.min_price);
-  const current = modal ?? max ?? min;
-  if (current == null) return null;
+const fetchEnamLiveRecordsForState = async (stateName) => {
+  const normalizedState = normalizeLocation(stateName)?.toUpperCase();
+  if (!normalizedState) return [];
 
-  return {
-    currentPrice: current,
-    minPrice: min,
-    maxPrice: max,
-    modalPrice: modal,
-    unit: 'per quintal',
-    currency: 'INR',
-    arrivalDate: record.arrival_date || null,
-    mandiName: record.market_name || record.market || null,
-    stateName: record.state || record.state_name || null
-  };
-};
-
-const pickTopMandiRecord = (records, stateName = null) => {
-  if (!Array.isArray(records) || records.length === 0) return null;
-  const normalizedState = normalizeLocation(stateName);
-
-  let filtered = records;
-  if (normalizedState) {
-    const stateMatches = records.filter((r) => {
-      const recState = normalizeLocation(r?.state || r?.state_name || '');
-      return recState && recState === normalizedState;
-    });
-    if (stateMatches.length > 0) filtered = stateMatches;
+  const cached = enamStateCache.get(normalizedState);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.records;
   }
 
-  const scored = filtered
-    .map((r) => {
-      const normalized = normalizeAgmarknetRecord(r);
-      if (!normalized) return null;
-      return {
-        normalized,
-        arrivalTs: parseArrivalDate(r.arrival_date),
-        modal: normalized.modalPrice ?? -1,
-        max: normalized.maxPrice ?? -1
-      };
-    })
-    .filter(Boolean);
-
-  if (scored.length === 0) return null;
-
-  scored.sort((a, b) => {
-    if (b.arrivalTs !== a.arrivalTs) return b.arrivalTs - a.arrivalTs;
-    if (b.modal !== a.modal) return b.modal - a.modal;
-    return b.max - a.max;
+  const pageResponse = await axios.get(ENAM_LIVE_PRICE_PAGE_URL, {
+    timeout: ENAM_TIMEOUT_MS,
+    headers: {
+      'User-Agent': ENAM_USER_AGENT
+    }
   });
 
-  return scored[0].normalized;
+  const cookies = Array.isArray(pageResponse.headers['set-cookie'])
+    ? pageResponse.headers['set-cookie'].map((cookie) => cookie.split(';')[0]).join('; ')
+    : '';
+  const html = String(pageResponse.data || '');
+  const dateMatch = html.match(/id="current_date"\s+value="(\d{4}-\d{2}-\d{2})"/) || html.match(/id="previous_date"\s+value="(\d{4}-\d{2}-\d{2})"/);
+  if (!dateMatch?.[1]) {
+    throw new Error('Could not determine eNAM live price date');
+  }
+
+  const body = new URLSearchParams({
+    language: 'en',
+    stateName: normalizedState,
+    fromDate: dateMatch[1],
+    toDate: dateMatch[1]
+  }).toString();
+
+  const tradeResponse = await axios.post(ENAM_TRADE_DATA_URL, body, {
+    timeout: ENAM_TIMEOUT_MS,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'X-Requested-With': 'XMLHttpRequest',
+      Referer: ENAM_LIVE_PRICE_PAGE_URL,
+      Cookie: cookies,
+      'User-Agent': ENAM_USER_AGENT
+    }
+  });
+
+  const records = Array.isArray(tradeResponse?.data?.data) ? tradeResponse.data.data : [];
+  enamStateCache.set(normalizedState, {
+    records,
+    expiresAt: Date.now() + ENAM_CACHE_TTL_MS
+  });
+
+  return records;
 };
 
-const fetchFromAgmarknet = async (commodity, mandiName, stateName = null) => {
-  if (!AGMARKNET_API_KEY) {
-    console.error('AGMARKNET_API_KEY is missing; cannot call Agmarknet API');
-    return null;
-  }
-  const paramsBase = {
-    'api-key': AGMARKNET_API_KEY,
-    format: 'json',
-    limit: 100,
-    'filters[commodity_name]': commodity
-  };
+const fetchFromEnam = async (commodity, stateName = null) => {
+  const normalizedState = normalizeLocation(stateName);
+  if (!normalizedState) return null;
 
   try {
-    console.log(`Fetching from Agmarknet API: ${commodity} @ ${stateName || mandiName || 'All-India'}`);
-    let response = null;
-    const requestWithRetry = async (params) => {
-      for (let attempt = 0; attempt <= AGMARKNET_RETRIES; attempt++) {
-        try {
-          return await axios.get(AGMARKNET_API_URL, { params, timeout: AGMARKNET_TIMEOUT_MS });
-        } catch (err) {
-          const isLast = attempt === AGMARKNET_RETRIES;
-          if (isLast) throw err;
-          const waitMs = 500 * (attempt + 1);
-          await new Promise((resolve) => setTimeout(resolve, waitMs));
-        }
-      }
-      return null;
-    };
+    const records = await fetchEnamLiveRecordsForState(normalizedState);
+    const commodityKey = normalizeMarketCompactKey(commodity);
+    if (!commodityKey || records.length === 0) return null;
 
-    // 1) State-level query: pick top mandi in requested state
-    if (stateName) {
-      const stateParams = { ...paramsBase, 'filters[state]': stateName };
-      response = await requestWithRetry(stateParams);
-      const stateRecords = response?.data?.records || [];
-      let best = pickTopMandiRecord(stateRecords, stateName);
+    const matches = records
+      .filter((record) => {
+        const recordKey = normalizeMarketCompactKey(record.commodity);
+        return recordKey === commodityKey || recordKey.includes(commodityKey) || commodityKey.includes(recordKey);
+      })
+      .map((record) => {
+        const modal = parseNumeric(record.modal_price);
+        const min = parseNumeric(record.min_price);
+        const max = parseNumeric(record.max_price);
+        const current = modal ?? max ?? min;
+        if (current == null) return null;
 
-      // Some datasets use state_name instead of state
-      if (!best) {
-        const stateNameParams = { ...paramsBase, 'filters[state_name]': stateName };
-        response = await requestWithRetry(stateNameParams);
-        best = pickTopMandiRecord(response?.data?.records || [], stateName);
-      }
-
-      if (best) {
         return {
-          ...best,
-          source: 'Agmarknet (State Best Mandi)'
+          currentPrice: current,
+          minPrice: min,
+          maxPrice: max,
+          modalPrice: modal,
+          unit: String(record.Commodity_Uom || '').toLowerCase() === 'qui' ? 'per quintal' : 'per quintal',
+          currency: 'INR',
+          arrivalDate: record.created_at || record.curr_date || null,
+          mandiName: record.apmc || null,
+          stateName: normalizedState,
+          tradedVolume: parseNumeric(record.commodity_traded) || 0
         };
-      }
-    }
-
-    // 2) Specific mandi mapping fallback
-    if (mandiName) {
-      const mandiParams = { ...paramsBase, 'filters[market_name]': mandiName };
-      response = await requestWithRetry(mandiParams);
-      const mandiBest = pickTopMandiRecord(response?.data?.records || []);
-      if (mandiBest) {
-        return {
-          ...mandiBest,
-          source: 'Agmarknet'
-        };
-      }
-    }
-
-    // 3) Commodity-wide fallback (or state filtered client-side if state was requested)
-    const fallbackResp = await requestWithRetry(paramsBase);
-    const bestFallback = pickTopMandiRecord(fallbackResp?.data?.records || [], stateName);
-    if (bestFallback) {
-      return {
-        ...bestFallback,
-        source: stateName ? 'Agmarknet (State Best Mandi)' : 'Agmarknet (Commodity Fallback)'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    const status = error?.response?.status;
-    const code = error?.code;
-    const message = error?.message || String(error);
-    const shouldLog = LOG_AGMARKNET_ERRORS || status === 401 || status === 403;
-
-    if (shouldLog) {
-      console.error('Agmarknet API request failed', {
-        commodity,
-        stateName: stateName || null,
-        mandiName: mandiName || null,
-        status: status || null,
-        code: code || null,
-        message
+      })
+      .filter(Boolean)
+      .sort((a, b) => {
+        const byDate = parseArrivalDate(b.arrivalDate) - parseArrivalDate(a.arrivalDate);
+        if (byDate !== 0) return byDate;
+        if (b.tradedVolume !== a.tradedVolume) return b.tradedVolume - a.tradedVolume;
+        return (b.modalPrice ?? b.currentPrice) - (a.modalPrice ?? a.currentPrice);
       });
-    }
 
-    if (status === 401 || status === 403) {
-      console.error('Agmarknet API authentication failed. Check AGMARKNET_API_KEY in .env');
-    }
+    if (matches.length === 0) return null;
 
+    return {
+      ...matches[0],
+      source: 'eNAM Live'
+    };
+  } catch (error) {
+    console.warn('eNAM live price fetch failed:', error.message || error);
     return null;
   }
 };
 
 /**
- * OpenAI fallback for mandi/crop price estimates when Agmarknet is unavailable.
+ * OpenAI fallback for mandi/crop price estimates when eNAM is unavailable.
  * Returns normalized numeric price structure or null.
  */
 const fetchFromOpenAIProvider = async (cropName, commodity, location) => {
@@ -617,53 +568,26 @@ const getMarketPrice = async (cropName, location = null, hasInternet = true) => 
 
     // Try API when internet is available
     if (hasInternet) {
-      const apiPrice = await fetchFromAgmarknet(commodity, mandi, normalizedLocation);
-      if (apiPrice) {
-        // Ensure we have a numeric current price; try modal -> max -> min
-        const numericCurrent = (apiPrice.currentPrice && Number(apiPrice.currentPrice))
-          ? Number(apiPrice.currentPrice)
-          : (apiPrice.maxPrice && Number(apiPrice.maxPrice))
-            ? Number(apiPrice.maxPrice)
-            : (apiPrice.minPrice && Number(apiPrice.minPrice))
-              ? Number(apiPrice.minPrice)
-              : null;
-
-        if (numericCurrent !== null) {
-          // Use exact values from Agmarknet API when available (no local multiplier adjustment).
-          console.log(`Market price (Agmarknet) for ${cropName} @ ${location}:`, numericCurrent);
-          let normalized = {
-            currentPrice: numericCurrent,
-            minPrice: apiPrice.minPrice ? Number(apiPrice.minPrice) : null,
-            maxPrice: apiPrice.maxPrice ? Number(apiPrice.maxPrice) : null,
-            modalPrice: apiPrice.modalPrice ? Number(apiPrice.modalPrice) : null,
-            unit: apiPrice.unit || 'per quintal',
-            currency: apiPrice.currency || 'INR',
-            arrivalDate: apiPrice.arrivalDate || new Date().toISOString(),
-            mandiName: apiPrice.mandiName || mandi || null,
-            source: apiPrice.source || 'Agmarknet'
-          };
-          if (normalizedLocation && normalized.source === 'Agmarknet (Commodity Fallback)') {
-            normalized = adjustPriceByLocation(cropLower, normalizedLocation, 'All-India', normalized);
-          }
-          await saveToCacheDB(cropName, normalized, normalizedLocation);
-          return {
-            cropName: cropName,
-            current: normalized.currentPrice,
-            min: normalized.minPrice,
-            max: normalized.maxPrice,
-            unit: normalized.unit,
-            currency: normalized.currency,
-            location: normalizedLocation || 'All-India Average',
-            timestamp: new Date().toISOString(),
-            source: 'Agmarknet (Live)',
-            arrivalDate: normalized.arrivalDate,
-            mandiName: normalized.mandiName || mandi || null
-          };
-        }
-        console.log(`Agmarknet returned no numeric price for ${cropName} @ ${location}`);
+      const enamPrice = await fetchFromEnam(commodity, normalizedLocation);
+      if (enamPrice) {
+        console.log(`Market price (eNAM) for ${cropName} @ ${location}:`, enamPrice.currentPrice);
+        await saveToCacheDB(cropName, enamPrice, normalizedLocation);
+        return {
+          cropName: cropName,
+          current: enamPrice.currentPrice,
+          min: enamPrice.minPrice,
+          max: enamPrice.maxPrice,
+          unit: enamPrice.unit,
+          currency: enamPrice.currency,
+          location: normalizedLocation || 'All-India Average',
+          timestamp: new Date().toISOString(),
+          source: enamPrice.source,
+          arrivalDate: enamPrice.arrivalDate,
+          mandiName: enamPrice.mandiName || mandi || null
+        };
       }
 
-      // If Agmarknet fails, try OpenAI-based mandi estimate
+      // If eNAM fails, try OpenAI-based mandi estimate
       const openaiPrice = await fetchFromOpenAIProvider(cropName, commodity, normalizedLocation);
       if (openaiPrice) {
         console.log(`Market price (OpenAI) for ${cropName} @ ${location}:`, openaiPrice.currentPrice);
@@ -684,7 +608,7 @@ const getMarketPrice = async (cropName, location = null, hasInternet = true) => 
         };
       }
 
-      // Try alternative provider (simulated or other) when Agmarknet fails or key unauthorized
+      // Try alternative provider (simulated or other) when eNAM is unavailable
       const alt = await fetchFromAlternativeProvider(cropName, commodity, mandi, normalizedLocation);
       if (alt) {
         console.log(`Market price (Alternative) for ${cropName} @ ${location}:`, alt.currentPrice);
@@ -842,17 +766,13 @@ const getCropMarketData = async (cropName, location = null, hasInternet = true) 
  */
 const refreshAllPrices = async () => {
   try {
-    console.log('Refreshing market prices from Agmarknet...');
-    if (!AGMARKNET_API_KEY) {
-      console.warn('AGMARKNET_API_KEY is missing; skipping Agmarknet refresh');
-      return 0;
-    }
+    console.log('Refreshing market prices from eNAM...');
     let updated = 0;
 
     for (const [cropName, commodity] of Object.entries(cropToCommodity)) {
-      for (const [location, mandi] of Object.entries(locationToMandiCode)) {
+      for (const location of Object.keys(locationToMandiCode)) {
         try {
-          const priceData = await fetchFromAgmarknet(commodity, mandi);
+          const priceData = await fetchFromEnam(commodity, location);
           if (priceData) {
             await saveToCacheDB(cropName, priceData, location);
             updated++;
@@ -875,7 +795,6 @@ module.exports = {
   getMarketPrice,
   getMarketPricesForCrops,
   getCropMarketData,
-  fetchFromAgmarknet,
   saveToCacheDB,
   fetchFromCacheDB,
   refreshAllPrices,

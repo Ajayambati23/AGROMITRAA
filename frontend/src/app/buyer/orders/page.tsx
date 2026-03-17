@@ -2,10 +2,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useTranslation } from '@/hooks/useTranslation';
 import { buyerMarketplaceAPI, buyerOrdersAPI, BuyerOrder, getErrorMessage } from '@/lib/api';
 import { Leaf, Package, ArrowLeft, Phone, Mail, User, RefreshCw } from 'lucide-react';
 
 export default function MyOrdersPage() {
+  const { t } = useTranslation();
   const [orders, setOrders] = useState<BuyerOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function MyOrdersPage() {
   }, [loadOrders]);
 
   const listing = (o: BuyerOrder) => o.listingId || {};
-  const listingName = (o: BuyerOrder) => listing(o).cropName || 'Crop';
+  const listingName = (o: BuyerOrder) => listing(o).cropName || t('cropName');
   const listingUnit = (o: BuyerOrder) => listing(o).unit || '';
   const seller = (o: BuyerOrder) => listing(o).sellerId || {};
   const orderIdShort = (id: string) => id ? `#${String(id).slice(-8).toUpperCase()}` : '';
@@ -66,17 +68,17 @@ export default function MyOrdersPage() {
               <Leaf className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">AgroMitra Buyer Portal</h1>
-              <p className="text-slate-400 text-sm">My Orders</p>
+              <h1 className="text-xl font-bold">{t('buyerPortalTitle')}</h1>
+              <p className="text-slate-400 text-sm">{t('myOrdersTitle')}</p>
             </div>
           </Link>
           <div className="flex items-center gap-2">
             <button type="button" onClick={() => loadOrders()} disabled={loading} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 disabled:opacity-50 text-white text-sm">
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
+              {t('refresh')}
             </button>
             <Link href="/buyer" className="flex items-center gap-2 text-slate-300 hover:text-white text-sm">
-              <ArrowLeft className="w-4 h-4" /> Back to listings
+              <ArrowLeft className="w-4 h-4" /> {t('browseListings')}
             </Link>
           </div>
         </div>
@@ -84,21 +86,21 @@ export default function MyOrdersPage() {
 
       <main className="container mx-auto px-4 py-8 max-w-4xl">
         {loading ? (
-          <p className="text-gray-500">Loading orders...</p>
+          <p className="text-gray-500">{t('loadingOrders')}</p>
         ) : error ? (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl">{error}</div>
         ) : orders.length === 0 ? (
           <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
             <Package className="w-14 h-14 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">No orders yet</p>
-            <p className="text-sm text-gray-500 mt-1">Place an order from the listings and it will appear here.</p>
+            <p className="text-gray-600 font-medium">{t('noOrdersYet')}</p>
+            <p className="text-sm text-gray-500 mt-1">{t('placeOrderFromListings')}</p>
             <Link href="/buyer" className="inline-block mt-4 px-6 py-2 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700">
-              Browse listings
+              {t('browseListings')}
             </Link>
           </div>
         ) : (
           <div className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-800">Your orders</h2>
+            <h2 className="text-lg font-bold text-gray-800">{t('yourOrders')}</h2>
             {orders.map((o) => {
               const farmer = seller(o);
               return (
@@ -107,14 +109,14 @@ export default function MyOrdersPage() {
                     <div>
                       <p className="font-semibold text-gray-800">{listingName(o)}</p>
                       <p className="text-sm text-gray-600">{o.quantity} {listingUnit(o)}</p>
-                      <p className="text-xs text-gray-500 mt-1">Order ID: <span className="font-mono font-medium">{orderIdShort(o._id)}</span></p>
-                      <p className="text-xs text-gray-500 mt-1">Status: <span className="font-medium capitalize">{o.status}</span></p>
+                      <p className="text-xs text-gray-500 mt-1">{t('orderId')}: <span className="font-mono font-medium">{orderIdShort(o._id)}</span></p>
+                      <p className="text-xs text-gray-500 mt-1">{t('status')}: <span className="font-medium capitalize">{o.status}</span></p>
                     </div>
                     <span className="text-xs font-medium px-2 py-1 rounded-lg bg-green-50 text-green-700 capitalize">{o.status}</span>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">Ordered on {new Date(o.createdAt).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-500 mt-2">{t('orderedOn')} {new Date(o.createdAt).toLocaleDateString()}</p>
                   <div className="mt-4 pt-4 border-t border-gray-100">
-                    <p className="text-xs font-medium text-gray-600 mb-2">Farmer / Seller contact</p>
+                    <p className="text-xs font-medium text-gray-600 mb-2">{t('farmerSellerContact')}</p>
                     <div className="flex flex-wrap gap-3 text-sm">
                       <span className="flex items-center gap-1.5 text-gray-700">
                         <User className="w-4 h-4 text-gray-500" />
@@ -122,14 +124,14 @@ export default function MyOrdersPage() {
                       </span>
                       {farmer.phone && <a href={`tel:${farmer.phone}`} className="flex items-center gap-1.5 text-green-600 hover:text-green-700 font-medium"><Phone className="w-4 h-4" /> {farmer.phone}</a>}
                       {farmer.email && <a href={`mailto:${farmer.email}`} className="flex items-center gap-1.5 text-green-600 hover:text-green-700 font-medium"><Mail className="w-4 h-4" /> {farmer.email}</a>}
-                      {!farmer.phone && !farmer.email && <span className="text-gray-400">No contact shared</span>}
+                      {!farmer.phone && !farmer.email && <span className="text-gray-400">{t('noContactShared')}</span>}
                     </div>
                   </div>
                   {o.status === 'delivered' && (
                     <div className="mt-4 pt-4 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-600 mb-2">Rate this farmer</p>
+                      <p className="text-xs font-medium text-gray-600 mb-2">{t('rateThisFarmer')}</p>
                       {reviewByOrder[o._id]?.done ? (
-                        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">Review submitted. Thank you.</p>
+                        <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2">{t('reviewSubmitted')}</p>
                       ) : (
                         <div className="flex flex-wrap items-center gap-2">
                           <select value={reviewByOrder[o._id]?.rating ?? 5} onChange={(e) => setReviewByOrder((p) => ({ ...p, [o._id]: { ...(p[o._id] || { comment: '' }), rating: Number(e.target.value) } }))} className="px-3 py-2 rounded-lg border border-gray-200 text-sm bg-white">
@@ -139,9 +141,9 @@ export default function MyOrdersPage() {
                             <option value={2}>2 - Poor</option>
                             <option value={1}>1 - Bad</option>
                           </select>
-                          <input type="text" placeholder="Comment (optional)" value={reviewByOrder[o._id]?.comment ?? ''} onChange={(e) => setReviewByOrder((p) => ({ ...p, [o._id]: { ...(p[o._id] || { rating: 5 }), comment: e.target.value } }))} className="px-3 py-2 rounded-lg border border-gray-200 text-sm min-w-[220px] flex-1" />
+                          <input type="text" placeholder={t('commentOptional')} value={reviewByOrder[o._id]?.comment ?? ''} onChange={(e) => setReviewByOrder((p) => ({ ...p, [o._id]: { ...(p[o._id] || { rating: 5 }), comment: e.target.value } }))} className="px-3 py-2 rounded-lg border border-gray-200 text-sm min-w-[220px] flex-1" />
                           <button type="button" onClick={() => submitReview(o)} disabled={reviewByOrder[o._id]?.saving} className="px-3 py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50">
-                            {reviewByOrder[o._id]?.saving ? 'Saving...' : 'Submit'}
+                            {reviewByOrder[o._id]?.saving ? t('saving') : t('submit')}
                           </button>
                         </div>
                       )}

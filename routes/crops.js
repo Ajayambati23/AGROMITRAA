@@ -4,15 +4,63 @@ const { body, validationResult } = require('express-validator');
 const Crop = require('../models/Crop');
 const { getTranslation } = require('../utils/translations');
 const { getLocationData, getOptimalSoilType } = require('../utils/locationData');
-const { getMarketPrice } = require('../services/marketPriceService');
+const { getMarketPrice, mockMarketPrices } = require('../services/marketPriceService');
 const OpenAI = require('openai');
 
 const router = express.Router();
-const AGMARKNET_API_URL = 'https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070';
-const AGMARKNET_API_KEY = String(process.env.AGMARKNET_API_KEY || '').trim();
-const AGMARKNET_TIMEOUT_MS = Number(process.env.AGMARKNET_TIMEOUT_MS || 12000);
+const ENAM_LIVE_PRICE_PAGE_URL = 'https://enam.gov.in/web/dashboard/live_price';
+const ENAM_TRADE_DATA_URL = 'https://enam.gov.in/web/Liveprice_ctrl/trade_data_list';
+const ENAM_TIMEOUT_MS = Number(process.env.ENAM_TIMEOUT_MS || 12000);
+const ENAM_CACHE_TTL_MS = Number(process.env.ENAM_CACHE_TTL_MS || 5 * 60 * 1000);
+const ENAM_USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+const enamStateCache = new Map();
+const TELANGANA_ENAM_EXTRA_MARKETS = {
+  Hyderabad: ['Hyderabad'],
+  Jagtial: ['Metpally'],
+  Jangaon: ['Jangaon'],
+  Karimnagar: ['Choppadandi'],
+  Mahabubabad: ['Kesamudram'],
+  Mahabubnagar: ['Narayanpet'],
+  Nagarkurnool: ['Achampet'],
+  Nizamabad: ['Nizamabad'],
+  Sangareddy: ['Zaheerabad'],
+  Suryapet: ['Suryapeta'],
+  'Warangal (Urban)': ['Warangal']
+};
+const TELANGANA_FALLBACK_MARKETS = {
+  Adilabad: ['Adilabad'],
+  'Bhadradri Kothagudem': ['Kothagudem', 'Bhadrachalam'],
+  Hyderabad: ['Bowenpally', 'Gudimalkapur'],
+  Jagtial: ['Jagtial', 'Metpally'],
+  Jangaon: ['Jangaon'],
+  'Jogulamba Gadwal': ['Gadwal'],
+  Kamareddy: ['Kamareddy', 'Banswada'],
+  Karimnagar: ['Karimnagar', 'Huzurabad'],
+  Khammam: ['Khammam', 'Madhira'],
+  Mahabubabad: ['Mahabubabad'],
+  Mahabubnagar: ['Mahabubnagar', 'Narayanpet'],
+  Mancherial: ['Mancherial'],
+  Medak: ['Medak', 'Narsapur'],
+  Medchal: ['Medchal', 'Malkajgiri'],
+  Nagarkurnool: ['Nagarkurnool'],
+  Nalgonda: ['Nalgonda', 'Miryalaguda'],
+  Nirmal: ['Nirmal', 'Bhainsa'],
+  Nizamabad: ['Nizamabad', 'Bodhan', 'Armoor'],
+  Peddapalli: ['Peddapalli'],
+  'Rajanna Sircilla': ['Sircilla'],
+  Rangareddy: ['Shadnagar', 'Ibrahimpatnam', 'Chevella'],
+  Sangareddy: ['Sangareddy', 'Zaheerabad'],
+  Siddipet: ['Siddipet', 'Gajwel'],
+  Suryapet: ['Suryapet', 'Kodad'],
+  Vikarabad: ['Vikarabad', 'Tandur'],
+  Wanaparthy: ['Wanaparthy'],
+  'Warangal (Rural)': ['Narsampet', 'Parkal'],
+  'Warangal (Urban)': ['Warangal', 'Kazipet'],
+  'Yadadri Bhuvanagiri': ['Bhongir', 'Choutuppal']
+};
 
 const normalizeField = (value) => String(value || '').trim();
+const normalizeKey = (value) => normalizeField(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ');
 
 const parsePrice = (value) => {
   if (value == null) return null;
@@ -33,47 +81,352 @@ const parseDateMs = (value) => {
   return Number.isNaN(dt.getTime()) ? 0 : dt.getTime();
 };
 
-const assertAgmarknetConfigured = (res) => {
-  if (AGMARKNET_API_KEY) return true;
-  res.status(500).json({ message: 'AGMARKNET_API_KEY is missing on server' });
-  return false;
+const ENAM_SUPPORTED_MARKET_STATES = ['Telangana'];
+
+const getTelanganaFallbackDistricts = () => Object.keys(TELANGANA_FALLBACK_MARKETS).sort((a, b) => a.localeCompare(b));
+
+const getTelanganaFallbackMarkets = (district) => {
+  const districtKey = normalizeKey(district);
+  const match = Object.entries(TELANGANA_FALLBACK_MARKETS).find(([name]) => normalizeKey(name) === districtKey);
+  return match ? [...match[1]].sort((a, b) => a.localeCompare(b)) : [];
 };
 
-const fetchAgmarknetRecords = async ({ filters = {}, maxRecords = 1000 }) => {
-  const pageSize = 100;
-  const records = [];
-  let offset = 0;
+const getTelanganaEnamExtraMarkets = (district) => {
+  const districtKey = normalizeKey(district);
+  const match = Object.entries(TELANGANA_ENAM_EXTRA_MARKETS).find(([name]) => normalizeKey(name) === districtKey);
+  return match ? [...match[1]].sort((a, b) => a.localeCompare(b)) : [];
+};
 
-  while (records.length < maxRecords) {
-    const params = {
-      'api-key': AGMARKNET_API_KEY,
-      format: 'json',
-      limit: Math.min(pageSize, maxRecords - records.length),
-      offset
-    };
+const getTelanganaKnownMarkets = (district) => uniqueSortedMarkets([
+  ...getTelanganaFallbackMarkets(district),
+  ...getTelanganaEnamExtraMarkets(district)
+]);
 
-    Object.entries(filters).forEach(([key, value]) => {
-      if (value != null && String(value).trim()) {
-        params[`filters[${key}]`] = String(value).trim();
-      }
-    });
+const toTitleCase = (value) => normalizeField(value)
+  .toLowerCase()
+  .split(/\s+/)
+  .filter(Boolean)
+  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+  .join(' ');
 
-    const response = await axios.get(AGMARKNET_API_URL, {
-      params,
-      timeout: AGMARKNET_TIMEOUT_MS
-    });
+const normalizeCompactKey = (value) => normalizeKey(value).replace(/\s+/g, '');
 
-    const batch = Array.isArray(response?.data?.records) ? response.data.records : [];
-    if (batch.length === 0) break;
-    records.push(...batch);
-    offset += batch.length;
+const MARKET_CANONICAL_NAMES = {
+  achampet: 'Achampet',
+  armoor: 'Armoor',
+  bhongir: 'Bhongir',
+  bodhan: 'Bodhan',
+  bowenpally: 'Bowenpally',
+  choppadandi: 'Choppadandi',
+  gadwal: 'Gadwal',
+  gudimalkapur: 'Gudimalkapur',
+  gudumalkapur: 'Gudimalkapur',
+  hyderabad: 'Hyderabad',
+  jagtial: 'Jagtial',
+  jangaon: 'Jangaon',
+  kazipet: 'Kazipet',
+  kesamudram: 'Kesamudram',
+  metpalli: 'Metpally',
+  metpally: 'Metpally',
+  narayanpet: 'Narayanpet',
+  nizamabad: 'Nizamabad',
+  siddipet: 'Siddipet',
+  sircilla: 'Sircilla',
+  suryapet: 'Suryapet',
+  suryapeta: 'Suryapet',
+  warangal: 'Warangal',
+  zaheerabad: 'Zaheerabad'
+};
 
-    const total = Number(response?.data?.total);
-    if (Number.isFinite(total) && offset >= total) break;
-    if (batch.length < pageSize) break;
+const canonicalizeMarketName = (value) => {
+  const raw = normalizeField(value);
+  const key = normalizeCompactKey(raw);
+  if (!key) return '';
+  return MARKET_CANONICAL_NAMES[key] || toTitleCase(raw);
+};
+
+const uniqueSortedMarkets = (markets) => {
+  const deduped = new Map();
+
+  for (const market of markets || []) {
+    const canonical = canonicalizeMarketName(market);
+    const key = normalizeCompactKey(canonical);
+    if (!key || deduped.has(key)) continue;
+    deduped.set(key, canonical);
   }
 
+  return [...deduped.values()].sort((a, b) => a.localeCompare(b));
+};
+
+const buildEmptyMarketPriceResponse = ({
+  state,
+  district,
+  market,
+  message,
+  source = 'fallback',
+  count = 0,
+  prices = []
+}) => ({
+  state,
+  district,
+  market,
+  count,
+  prices,
+  source,
+  message
+});
+
+const getFallbackPricesForSelectedMarket = async ({ state, district, market, limit }) => {
+  let crops = await Crop.find({ isActive: true })
+    .select('name marketPrice')
+    .limit(limit)
+    .sort({ name: 1 });
+
+  if (crops.length === 0) {
+    crops = Object.entries(mockMarketPrices)
+      .slice(0, limit)
+      .map(([name, marketPrice]) => ({
+        name: toTitleCase(name),
+        marketPrice: {
+          current: Math.round((Number(marketPrice.min || 0) + Number(marketPrice.max || 0)) / 2),
+          unit: marketPrice.unit || 'per quintal',
+          currency: marketPrice.currency || 'INR'
+        }
+      }));
+  }
+
+  const prices = await Promise.all(crops.map(async (crop) => {
+    try {
+      const fallback = await getMarketPrice(crop.name, state, false);
+      const numericPrice = typeof fallback?.current === 'number' && !Number.isNaN(fallback.current)
+        ? fallback.current
+        : (crop.marketPrice && typeof crop.marketPrice.current === 'number' ? crop.marketPrice.current : null);
+
+      return {
+        cropName: crop.name,
+        variety: null,
+        price: numericPrice,
+        min: typeof fallback?.min === 'number' ? fallback.min : null,
+        max: typeof fallback?.max === 'number' ? fallback.max : null,
+        unit: fallback?.unit || crop.marketPrice?.unit || 'per quintal',
+        currency: fallback?.currency || crop.marketPrice?.currency || 'INR',
+        arrivalDate: fallback?.arrivalDate || fallback?.lastUpdated || fallback?.timestamp || null,
+        marketName: market,
+        district,
+        state,
+        source: fallback?.source || 'Fallback'
+      };
+    } catch (error) {
+      const fallbackPrice = crop.marketPrice && typeof crop.marketPrice.current === 'number'
+        ? crop.marketPrice.current
+        : null;
+
+      return {
+        cropName: crop.name,
+        variety: null,
+        price: fallbackPrice,
+        min: null,
+        max: null,
+        unit: crop.marketPrice?.unit || 'per quintal',
+        currency: crop.marketPrice?.currency || 'INR',
+        arrivalDate: null,
+        marketName: market,
+        district,
+        state,
+        source: fallbackPrice != null ? 'Stored Crop Price' : 'Fallback'
+      };
+    }
+  }));
+
+  return prices.filter((entry) => entry.price != null);
+};
+
+const resolveUnitFromEnam = (value) => {
+  const unit = normalizeField(value).toLowerCase();
+  if (unit === 'qui') return 'per quintal';
+  return unit ? `per ${unit}` : 'per quintal';
+};
+
+const getEnamMarketAliasKeys = ({ district, market }) => {
+  const aliases = new Set();
+  const addAlias = (value) => {
+    const normalized = normalizeCompactKey(value);
+    if (normalized) aliases.add(normalized);
+  };
+
+  addAlias(market);
+  addAlias(district);
+  getTelanganaKnownMarkets(district).forEach(addAlias);
+
+  const marketKey = normalizeCompactKey(market);
+  const districtKey = normalizeCompactKey(district);
+  const manualAliases = {
+    bowenpally: ['hyderabad'],
+    gudimalkapur: ['hyderabad'],
+    hyderabad: ['hyderabad'],
+    warangalurban: ['warangal'],
+    warangalrural: ['warangal'],
+    suryapet: ['suryapeta'],
+    kodad: ['suryapeta'],
+    jogulambagadwal: ['gadwal'],
+    rajannasircilla: ['sircilla'],
+    yadadribhuvanagiri: ['bhongir']
+  };
+
+  [marketKey, districtKey].forEach((key) => {
+    (manualAliases[key] || []).forEach(addAlias);
+  });
+
+  return [...aliases];
+};
+
+const getEnamMarketsForDistrict = async ({ state, district }) => {
+  if (normalizeKey(state) !== 'telangana') return [];
+
+  const records = await fetchEnamLiveRecordsForState(state);
+  if (records.length === 0) return [];
+
+  const aliasKeys = getEnamMarketAliasKeys({ district, market: '' });
+  const matchedRecords = records.filter((record) => aliasKeys.some((alias) => isEnamMarketMatch(record.apmc, alias)));
+
+  return uniqueSortedMarkets(matchedRecords.map((record) => record.apmc));
+};
+
+const getMergedMarketsForDistrict = async ({ state, district, baseMarkets = [] }) => {
+  if (normalizeKey(state) !== 'telangana') {
+    return uniqueSortedMarkets(baseMarkets);
+  }
+
+  let enamMarkets = [];
+  try {
+    enamMarkets = await getEnamMarketsForDistrict({ state, district });
+  } catch (error) {
+    console.warn('eNAM market list unavailable:', error.message || error);
+  }
+
+  return uniqueSortedMarkets([
+    ...baseMarkets,
+    ...getTelanganaKnownMarkets(district),
+    ...enamMarkets
+  ]);
+};
+
+const isEnamMarketMatch = (apmc, alias) => {
+  const apmcKey = normalizeCompactKey(apmc);
+  if (!apmcKey || !alias) return false;
+  return apmcKey === alias || apmcKey.startsWith(alias) || alias.startsWith(apmcKey) || apmcKey.includes(alias) || alias.includes(apmcKey);
+};
+
+const fetchEnamLiveRecordsForState = async (state) => {
+  const normalizedState = normalizeField(state).toUpperCase();
+  if (!normalizedState) return [];
+
+  const cached = enamStateCache.get(normalizedState);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.records;
+  }
+
+  const pageResponse = await axios.get(ENAM_LIVE_PRICE_PAGE_URL, {
+    timeout: ENAM_TIMEOUT_MS,
+    headers: {
+      'User-Agent': ENAM_USER_AGENT
+    }
+  });
+
+  const cookies = Array.isArray(pageResponse.headers['set-cookie'])
+    ? pageResponse.headers['set-cookie'].map((cookie) => cookie.split(';')[0]).join('; ')
+    : '';
+  const html = String(pageResponse.data || '');
+  const dateMatch = html.match(/id="current_date"\s+value="(\d{4}-\d{2}-\d{2})"/) || html.match(/id="previous_date"\s+value="(\d{4}-\d{2}-\d{2})"/);
+  if (!dateMatch?.[1]) {
+    throw new Error('Could not determine eNAM live price date');
+  }
+
+  const body = new URLSearchParams({
+    language: 'en',
+    stateName: normalizedState,
+    fromDate: dateMatch[1],
+    toDate: dateMatch[1]
+  }).toString();
+
+  const tradeResponse = await axios.post(ENAM_TRADE_DATA_URL, body, {
+    timeout: ENAM_TIMEOUT_MS,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+      'X-Requested-With': 'XMLHttpRequest',
+      Referer: ENAM_LIVE_PRICE_PAGE_URL,
+      Cookie: cookies,
+      'User-Agent': ENAM_USER_AGENT
+    }
+  });
+
+  const records = Array.isArray(tradeResponse?.data?.data) ? tradeResponse.data.data : [];
+  enamStateCache.set(normalizedState, {
+    records,
+    expiresAt: Date.now() + ENAM_CACHE_TTL_MS
+  });
+
   return records;
+};
+
+const getEnamPricesForSelectedMarket = async ({ state, district, market, limit }) => {
+  const records = await fetchEnamLiveRecordsForState(state);
+  if (records.length === 0) return [];
+
+  const aliasKeys = getEnamMarketAliasKeys({ district, market });
+  let matchedRecords = records.filter((record) => aliasKeys.some((alias) => isEnamMarketMatch(record.apmc, alias)));
+
+  if (matchedRecords.length === 0 && district) {
+    const districtKey = normalizeCompactKey(district);
+    matchedRecords = records.filter((record) => isEnamMarketMatch(record.apmc, districtKey));
+  }
+
+  if (matchedRecords.length === 0 && market) {
+    const marketKey = normalizeCompactKey(market);
+    matchedRecords = records.filter((record) => isEnamMarketMatch(record.apmc, marketKey));
+  }
+
+  const byCommodity = new Map();
+  for (const record of matchedRecords) {
+    const commodity = normalizeField(record.commodity);
+    if (!commodity) continue;
+
+    const arrivalMs = parseDateMs(record.created_at || record.curr_date);
+    const modal = parsePrice(record.modal_price);
+    const min = parsePrice(record.min_price);
+    const max = parsePrice(record.max_price);
+    const price = modal ?? max ?? min;
+    if (price == null) continue;
+
+    const tradedVolume = parsePrice(record.commodity_traded) || 0;
+    const normalized = {
+      cropName: commodity,
+      variety: null,
+      price,
+      min,
+      max,
+      unit: resolveUnitFromEnam(record.Commodity_Uom),
+      currency: 'INR',
+      arrivalDate: record.created_at || record.curr_date || null,
+      marketName: normalizeField(record.apmc) || market,
+      district,
+      state,
+      source: 'eNAM Live'
+    };
+
+    const existing = byCommodity.get(commodity);
+    if (!existing || arrivalMs > existing.arrivalMs || tradedVolume > existing.tradedVolume) {
+      byCommodity.set(commodity, { arrivalMs, tradedVolume, payload: normalized });
+    }
+  }
+
+  return Array.from(byCommodity.values())
+    .sort((a, b) => {
+      if (b.arrivalMs !== a.arrivalMs) return b.arrivalMs - a.arrivalMs;
+      return b.tradedVolume - a.tradedVolume;
+    })
+    .slice(0, limit)
+    .map((entry) => entry.payload);
 };
 
 // Check internet connectivity
@@ -320,7 +673,7 @@ router.get('/market-prices', async (req, res) => {
       .limit(parseInt(limit))
       .sort({ name: 1 });
 
-    // For each crop fetch best available price (Agmarknet -> cache -> mock); never omit a crop
+    // For each crop fetch best available price (eNAM -> cache -> mock); never omit a crop
     const prices = await Promise.all(crops.map(async (crop) => {
       try {
         const market = await getMarketPrice(crop.name, location, hasInternet);
@@ -368,167 +721,143 @@ router.get('/market-prices', async (req, res) => {
   }
 });
 
-// Get available states from Agmarknet
+// Get supported states for eNAM market browser
 router.get('/market-locations/states', async (req, res) => {
   try {
-    if (!assertAgmarknetConfigured(res)) return;
-
-    const records = await fetchAgmarknetRecords({ maxRecords: 3000 });
-    const states = Array.from(
-      new Set(
-        records
-          .map((r) => normalizeField(r.state || r.state_name))
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b));
-
-    res.json({ states });
+    res.json({ states: ENAM_SUPPORTED_MARKET_STATES, source: 'enam-live' });
   } catch (error) {
     console.error('Market states error:', error.message || error);
-    res.status(500).json({ message: 'Error fetching states from Agmarknet' });
+    res.status(500).json({ message: 'Error fetching eNAM supported states' });
   }
 });
 
 // Get available districts for a selected state
 router.get('/market-locations/districts', async (req, res) => {
+  const state = normalizeField(req.query.state);
   try {
-    if (!assertAgmarknetConfigured(res)) return;
-    const state = normalizeField(req.query.state);
     if (!state) {
       return res.status(400).json({ message: 'state is required' });
     }
 
-    let records = await fetchAgmarknetRecords({
-      filters: { state },
-      maxRecords: 3000
-    });
-
-    if (records.length === 0) {
-      records = await fetchAgmarknetRecords({
-        filters: { state_name: state },
-        maxRecords: 3000
+    if (normalizeKey(state) !== 'telangana') {
+      return res.json({
+        state,
+        districts: [],
+        source: 'enam-live',
+        message: 'eNAM market locations are currently configured for Telangana only'
       });
     }
 
-    const districts = Array.from(
-      new Set(
-        records
-          .map((r) => normalizeField(r.district))
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b));
-
-    res.json({ state, districts });
+    res.json({ state, districts: getTelanganaFallbackDistricts(), source: 'enam-live' });
   } catch (error) {
-    console.error('Market districts error:', error.message || error);
-    res.status(500).json({ message: 'Error fetching districts from Agmarknet' });
+    console.warn('Market districts fallback:', error.message || error);
+    if (normalizeKey(state) === 'telangana') {
+      return res.json({ state, districts: getTelanganaFallbackDistricts(), source: 'fallback' });
+    }
+    res.status(500).json({ message: 'Error fetching eNAM districts' });
   }
 });
 
 // Get available markets for selected state and district
 router.get('/market-locations/markets', async (req, res) => {
+  const state = normalizeField(req.query.state);
+  const district = normalizeField(req.query.district);
   try {
-    if (!assertAgmarknetConfigured(res)) return;
-    const state = normalizeField(req.query.state);
-    const district = normalizeField(req.query.district);
-
     if (!state || !district) {
       return res.status(400).json({ message: 'state and district are required' });
     }
 
-    let records = await fetchAgmarknetRecords({
-      filters: { state, district },
-      maxRecords: 3000
-    });
-
-    if (records.length === 0) {
-      records = await fetchAgmarknetRecords({
-        filters: { state_name: state, district },
-        maxRecords: 3000
+    if (normalizeKey(state) !== 'telangana') {
+      return res.json({
+        state,
+        district,
+        markets: [],
+        source: 'enam-live',
+        message: 'eNAM market lists are currently configured for Telangana only'
       });
     }
 
-    const markets = Array.from(
-      new Set(
-        records
-          .map((r) => normalizeField(r.market_name || r.market))
-          .filter(Boolean)
-      )
-    ).sort((a, b) => a.localeCompare(b));
-
-    res.json({ state, district, markets });
+    const mergedMarkets = await getMergedMarketsForDistrict({ state, district });
+    res.json({
+      state,
+      district,
+      markets: mergedMarkets,
+      source: 'enam-live'
+    });
   } catch (error) {
-    console.error('Market list error:', error.message || error);
-    res.status(500).json({ message: 'Error fetching markets from Agmarknet' });
+    console.warn('Market list fallback:', error.message || error);
+    if (normalizeKey(state) === 'telangana') {
+      const mergedMarkets = await getMergedMarketsForDistrict({ state, district });
+      return res.json({ state, district, markets: mergedMarkets, source: 'fallback+enam' });
+    }
+    res.status(500).json({ message: 'Error fetching eNAM markets' });
   }
 });
 
 // Get crop prices for a selected market
 router.get('/market-prices/by-market', async (req, res) => {
+  const state = normalizeField(req.query.state);
+  const district = normalizeField(req.query.district);
+  const market = normalizeField(req.query.market);
   try {
-    if (!assertAgmarknetConfigured(res)) return;
-    const state = normalizeField(req.query.state);
-    const district = normalizeField(req.query.district);
-    const market = normalizeField(req.query.market);
-    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 100)));
-
     if (!state || !district || !market) {
       return res.status(400).json({ message: 'state, district and market are required' });
     }
 
-    let records = await fetchAgmarknetRecords({
-      filters: { state, district, market_name: market },
-      maxRecords: 2000
-    });
-
-    if (records.length === 0) {
-      records = await fetchAgmarknetRecords({
-        filters: { state_name: state, district, market_name: market },
-        maxRecords: 2000
-      });
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 100)));
+    const enamPrices = await getEnamPricesForSelectedMarket({ state, district, market, limit });
+    if (enamPrices.length > 0) {
+      return res.json(buildEmptyMarketPriceResponse({
+        state,
+        district,
+        market,
+        count: enamPrices.length,
+        prices: enamPrices,
+        source: 'enam-live',
+        message: `Showing official eNAM live prices for ${canonicalizeMarketName(market) || market}`
+      }));
     }
 
-    const byCommodity = new Map();
-    for (const record of records) {
-      const commodity = normalizeField(record.commodity || record.commodity_name);
-      if (!commodity) continue;
-      const arrivalMs = parseDateMs(record.arrival_date);
-      const modal = parsePrice(record.modal_price);
-      const min = parsePrice(record.min_price);
-      const max = parsePrice(record.max_price);
-      const price = modal ?? max ?? min;
-      if (price == null) continue;
-
-      const normalized = {
-        cropName: commodity,
-        variety: normalizeField(record.variety || record.variety_name) || null,
-        price,
-        min,
-        max,
-        unit: 'per quintal',
-        currency: 'INR',
-        arrivalDate: record.arrival_date || null,
-        marketName: normalizeField(record.market_name || record.market) || market,
-        district: normalizeField(record.district) || district,
-        state: normalizeField(record.state || record.state_name) || state,
-        source: 'Agmarknet'
-      };
-
-      const existing = byCommodity.get(commodity);
-      if (!existing || arrivalMs > existing.arrivalMs) {
-        byCommodity.set(commodity, { arrivalMs, payload: normalized });
-      }
-    }
-
-    const prices = Array.from(byCommodity.values())
-      .sort((a, b) => b.arrivalMs - a.arrivalMs)
-      .slice(0, limit)
-      .map((entry) => entry.payload);
-
-    res.json({ state, district, market, count: prices.length, prices });
+    const fallbackPrices = await getFallbackPricesForSelectedMarket({ state, district, market, limit });
+    return res.json(buildEmptyMarketPriceResponse({
+      state,
+      district,
+      market,
+      count: fallbackPrices.length,
+      prices: fallbackPrices,
+      source: 'fallback-market-service',
+      message: 'Live eNAM prices are not available for this market right now'
+    }));
   } catch (error) {
-    console.error('Market by-market prices error:', error.message || error);
-    res.status(500).json({ message: 'Error fetching selected market prices' });
+    console.warn('Market by-market fallback:', error.message || error);
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 100)));
+    try {
+      const enamPrices = await getEnamPricesForSelectedMarket({ state, district, market, limit });
+      if (enamPrices.length > 0) {
+        return res.json(buildEmptyMarketPriceResponse({
+          state,
+          district,
+          market,
+          count: enamPrices.length,
+          prices: enamPrices,
+          source: 'enam-live',
+          message: `Showing official eNAM live prices for ${canonicalizeMarketName(market) || market}`
+        }));
+      }
+    } catch (enamError) {
+      console.warn('eNAM live price fallback unavailable:', enamError.message || enamError);
+    }
+
+    const fallbackPrices = await getFallbackPricesForSelectedMarket({ state, district, market, limit });
+    return res.json(buildEmptyMarketPriceResponse({
+      state,
+      district,
+      market,
+      count: fallbackPrices.length,
+      prices: fallbackPrices,
+      source: 'fallback-market-service',
+      message: 'Live eNAM prices are not available for this market right now'
+    }));
   }
 });
 
@@ -904,17 +1233,12 @@ function generateIrrigationSchedule(crop, language) {
   };
 }
 
-// Refresh market prices from Agmarknet API
+// Refresh market prices
 router.post('/market-prices/refresh', async (req, res) => {
   try {
-    const { refreshAllPrices } = require('../services/marketPriceService');
-    console.log('Manual market price refresh initiated');
-    
-    const updated = await refreshAllPrices();
-    
     res.json({
-      message: 'Market prices refreshed',
-      recordsUpdated: updated,
+      message: 'Live eNAM prices are fetched on demand; manual refresh is not required',
+      recordsUpdated: 0,
       timestamp: new Date().toISOString()
     });
   } catch (error) {

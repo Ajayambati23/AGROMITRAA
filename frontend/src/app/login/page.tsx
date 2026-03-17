@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { useTranslation } from '@/hooks/useTranslation';
 import { adminAPI, buyerAuthAPI } from '@/lib/api';
 import { Mail, Lock, ArrowLeft, Sprout } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -18,6 +19,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function LoginPage() {
   const { login, state, setLanguage } = useApp();
+  const { t } = useTranslation();
   const router = useRouter();
   const [formData, setFormData] = useState({
     email: '',
@@ -75,7 +77,7 @@ export default function LoginPage() {
       const validation = error?.response?.data?.errors;
       const message = Array.isArray(validation) && validation.length > 0
         ? validation.map((v: { msg?: string }) => v.msg).filter(Boolean).join('. ')
-        : error?.response?.data?.message || error.message || 'Login failed';
+        : error?.response?.data?.message || error.message || t('loginTitle');
       setError(message);
     } finally {
       setSubmitting(false);
@@ -98,7 +100,7 @@ export default function LoginPage() {
           className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to Home</span>
+          <span>{t('backToHome')}</span>
         </button>
         <div>
           <div className="flex items-center gap-3 mb-6">
@@ -107,11 +109,11 @@ export default function LoginPage() {
             </div>
             <div>
               <h1 className="text-3xl font-bold text-white">AgroMitra</h1>
-              <p className="text-slate-400 text-sm">Your AI farming companion</p>
+              <p className="text-slate-400 text-sm">{t('heroDescription')}</p>
             </div>
           </div>
           <p className="text-slate-300 text-lg max-w-sm">
-            Sign in to access weather, market prices, crop recommendations, and AI chat in your language.
+            {t('signInSubtitle')}
           </p>
         </div>
         <div>
@@ -144,7 +146,7 @@ export default function LoginPage() {
               className="flex items-center gap-2 text-gray-600 hover:text-gray-800"
             >
               <ArrowLeft className="w-5 h-5" />
-              <span>Back to Home</span>
+              <span>{t('backToHome')}</span>
             </button>
           </div>
 
@@ -153,8 +155,8 @@ export default function LoginPage() {
               <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse-soft">
                 <Sprout className="w-8 h-8 text-green-600" />
               </div>
-              <h1 className="text-2xl font-bold text-gray-800">Welcome Back</h1>
-              <p className="text-gray-500 text-sm mt-1">Sign in to your AgroMitra account</p>
+              <h1 className="text-2xl font-bold text-gray-800">{t('welcomeBack')}</h1>
+              <p className="text-gray-500 text-sm mt-1">{t('signInSubtitle')}</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -165,7 +167,7 @@ export default function LoginPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Email Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('emailAddress')}</label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
@@ -174,14 +176,14 @@ export default function LoginPage() {
                     value={formData.email}
                     onChange={handleChange}
                     className="input-field pl-11"
-                    placeholder="Enter your email"
+                    placeholder={t('emailAddress')}
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">{t('password')}</label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                   <input
@@ -190,7 +192,7 @@ export default function LoginPage() {
                     value={formData.password}
                     onChange={handleChange}
                     className="input-field pl-11"
-                    placeholder="Enter your password"
+                    placeholder={t('password')}
                     required
                   />
                 </div>
@@ -201,18 +203,18 @@ export default function LoginPage() {
                 disabled={state.isLoading || submitting}
                 className="w-full btn-primary flex items-center justify-center"
               >
-                {state.isLoading || submitting ? <LoadingSpinner size="sm" /> : 'Sign In'}
+                {state.isLoading || submitting ? <LoadingSpinner size="sm" /> : t('signIn')}
               </button>
 
               <div className="text-center">
                 <p className="text-gray-500 text-sm">
-                  Don&apos;t have an account?{' '}
+                  {t('dontHaveAccount')}{' '}
                   <button
                     type="button"
                     onClick={() => router.push('/register')}
                     className="text-green-600 hover:text-green-700 font-medium"
                   >
-                    Create one here
+                    {t('createOneHere')}
                   </button>
                 </p>
               </div>

@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useApp } from '@/contexts/AppContext';
+import { useTranslation } from '@/hooks/useTranslation';
 import {
   Mail,
   Lock,
@@ -38,6 +39,7 @@ const inputClass = 'input-field pl-12';
 
 export default function RegisterPage() {
   const { register, state, setLanguage } = useApp();
+  const { t } = useTranslation();
   const router = useRouter();
 
   const [formData, setFormData] = useState({
@@ -131,7 +133,7 @@ export default function RegisterPage() {
           className="flex items-center gap-2 text-slate-400 hover:text-white mb-12"
         >
           <ArrowLeft className="w-5 h-5" />
-          Back to Home
+          {t('backToHome')}
         </button>
 
         {/* Branding */}
@@ -147,21 +149,19 @@ export default function RegisterPage() {
                 AgroMitra
               </h1>
               <p className="text-slate-400 text-sm">
-                Your AI farming companion
+                {t('heroDescription')}
               </p>
             </div>
           </div>
 
           <p className="text-slate-300 text-lg leading-relaxed">
-            Create your account to get weather, market
-            prices, crop recommendations, and AI chat
-            in your language.
+            {t('createAccountSubtitle')}
           </p>
 
           {/* Language */}
           <div className="mt-10">
             <p className="text-slate-400 mb-3 text-sm">
-              Language
+              {t('language')}
             </p>
 
             <div className="grid grid-cols-2 gap-3">
@@ -207,11 +207,11 @@ export default function RegisterPage() {
               </div>
 
               <h1 className="text-2xl font-bold">
-                Join AgroMitra
+                {t('registerTitle')}
               </h1>
 
               <p className="text-gray-500 text-sm">
-                Create your account to get started
+                {t('createAccountSubtitle')}
               </p>
             </div>
 
@@ -243,7 +243,7 @@ export default function RegisterPage() {
                     value={formData.name}
                     onChange={handleChange}
                     className={inputClass}
-                    placeholder="Full Name"
+                    placeholder={t('fullName')}
                     required
                   />
                 </div>
@@ -260,7 +260,7 @@ export default function RegisterPage() {
                     value={formData.email}
                     onChange={handleChange}
                     className={inputClass}
-                    placeholder="Email Address"
+                    placeholder={t('emailAddress')}
                     required
                   />
                 </div>
@@ -278,7 +278,7 @@ export default function RegisterPage() {
                   value={formData.phone}
                   onChange={handleChange}
                   className={inputClass}
-                  placeholder="Phone Number"
+                  placeholder={t('phoneNumber')}
                   required
                 />
               </div>
@@ -293,7 +293,7 @@ export default function RegisterPage() {
                   className={inputClass}
                   required
                 >
-                  <option value="">Select State</option>
+                  <option value="">{t('state')}</option>
                   {statesAndDistricts.map((s) => (
                     <option
                       key={s.state}
@@ -312,7 +312,7 @@ export default function RegisterPage() {
                   required
                 >
                   <option value="">
-                    Select District
+                    {t('district')}
                   </option>
                   {districtsForState.map((d) => (
                     <option key={d} value={d}>
@@ -327,7 +327,7 @@ export default function RegisterPage() {
                   value={formData.location.village}
                   onChange={handleChange}
                   className={inputClass}
-                  placeholder="Village"
+                  placeholder={t('village')}
                   required
                 />
               </div>
@@ -366,7 +366,7 @@ export default function RegisterPage() {
                     value={formData.password}
                     onChange={handleChange}
                     className={inputClass}
-                    placeholder="Password"
+                    placeholder={t('password')}
                     required
                   />
                 </div>
@@ -384,7 +384,7 @@ export default function RegisterPage() {
                     }
                     onChange={handleChange}
                     className={inputClass}
-                    placeholder="Confirm Password"
+                    placeholder={t('confirmPassword')}
                     required
                   />
                 </div>
@@ -399,7 +399,7 @@ export default function RegisterPage() {
                 {state.isLoading ? (
                   <LoadingSpinner size="sm" />
                 ) : (
-                  'Create Account'
+                  t('createAccount')
                 )}
               </button>
             </form>

@@ -40,13 +40,13 @@ export default function AppSidebar({
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const labels: Record<string, string> = {
-    dashboard: 'Dashboard',
+    dashboard: t('dashboard'),
     chat: t('aiChat'),
     crops: t('cropRecommendations'),
-    sell: 'Sell Crops',
+    sell: t('sellCrops'),
     market: t('marketPrices'),
     calendar: t('farmingCalendar'),
-    profile: 'My Profile',
+    profile: t('myProfile'),
   };
 
   return (
@@ -56,7 +56,7 @@ export default function AppSidebar({
         type="button"
         onClick={() => setSidebarOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-40 p-2 rounded-xl bg-[#24412d] text-white shadow-lg"
-        aria-label="Open menu"
+        aria-label={t('dashboard')}
       >
         <Menu className="w-6 h-6" />
       </button>
@@ -131,7 +131,7 @@ export default function AppSidebar({
           >
             <User className="w-5 h-5 flex-shrink-0" />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white truncate">{state.user?.name || 'User'}</p>
+              <p className="text-sm font-semibold text-white truncate">{state.user?.name || t('fullName')}</p>
               <p className="text-xs text-slate-400 truncate">
                 {state.user?.location?.state && state.user?.location?.district
                   ? `${state.user.location.district}, ${state.user.location.state}`

@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/hooks/useTranslation';
 import { adminAPI } from '@/lib/api';
 
 export default function AdminLoginPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [email, setEmail] = useState('admin@example.com');
   const [password, setPassword] = useState('admin');
   const [loading, setLoading] = useState(false);
@@ -32,7 +34,7 @@ export default function AdminLoginPage() {
       const validation = err?.response?.data?.errors;
       const message = Array.isArray(validation) && validation.length
         ? validation.map((v: { msg?: string }) => v.msg).filter(Boolean).join('. ')
-        : err?.response?.data?.message || err?.message || 'Admin login failed';
+        : err?.response?.data?.message || err?.message || t('adminLogin');
       setError(message);
     } finally {
       setLoading(false);
@@ -42,8 +44,8 @@ export default function AdminLoginPage() {
   return (
     <div className="min-h-screen bg-transparent flex items-center justify-center p-4">
       <div className="w-full max-w-md card card-padded glass-panel animate-fade-up hover-lift">
-        <h1 className="text-2xl font-bold text-gray-900">Admin Login</h1>
-        <p className="text-sm text-gray-500 mt-1">Use admin credentials to access users and model training.</p>
+        <h1 className="text-2xl font-bold text-gray-900">{t('adminLogin')}</h1>
+        <p className="text-sm text-gray-500 mt-1">{t('adminLoginSubtitle')}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-6">
           {error && (
@@ -52,7 +54,7 @@ export default function AdminLoginPage() {
             </div>
           )}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('emailAddress')}</label>
             <input
               type="email"
               value={email}
@@ -62,7 +64,7 @@ export default function AdminLoginPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">{t('password')}</label>
             <input
               type="password"
               value={password}
@@ -76,7 +78,7 @@ export default function AdminLoginPage() {
             className="w-full btn-primary"
             disabled={loading}
           >
-            {loading ? 'Signing in...' : 'Sign In as Admin'}
+            {loading ? t('loading') : t('signInAsAdmin')}
           </button>
         </form>
       </div>

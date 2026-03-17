@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useApp } from '@/contexts/AppContext';
+import { useTranslation } from '@/hooks/useTranslation';
 import { marketplaceAPI, ordersAPI, Listing, ListingForm, FarmerOrder } from '@/lib/api';
 import { Package, Plus, Trash2, Edit2, MapPin, ShoppingCart, Phone, Mail, User, RefreshCw } from 'lucide-react';
 import LoadingSpinner from './LoadingSpinner';
@@ -16,6 +17,7 @@ const UNITS = [
 
 export default function SellCrops() {
   const { state } = useApp();
+  const { t } = useTranslation();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -158,8 +160,8 @@ export default function SellCrops() {
               <Package className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">Sell Crops</h2>
-              <p className="text-sm text-gray-500">List your produce for buyers to find</p>
+              <h2 className="text-xl font-bold text-gray-800">{t('sellCrops')}</h2>
+              <p className="text-sm text-gray-500">{t('listingSubtitle')}</p>
             </div>
           </div>
           <button
@@ -168,7 +170,7 @@ export default function SellCrops() {
             className="btn-primary flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
-            Add Listing
+            {t('addListing')}
           </button>
         </div>
 
@@ -181,21 +183,21 @@ export default function SellCrops() {
 
         {showForm && (
           <form onSubmit={handleSubmit} className="mb-8 p-4 rounded-2xl bg-gray-50 border border-gray-200 space-y-4">
-            <h3 className="font-semibold text-gray-800">{editingId ? 'Edit listing' : 'New listing'}</h3>
+            <h3 className="font-semibold text-gray-800">{editingId ? t('editListing') : t('newListing')}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">Crop name</label>
+                <label className="block text-sm font-medium text-gray-800 mb-2">{t('cropName')}</label>
                 <input
                   type="text"
                   value={form.cropName}
                   onChange={(e) => setForm({ ...form, cropName: e.target.value })}
                   className="input-field"
-                  placeholder="e.g. Rice, Wheat"
+                  placeholder={t('cropName')}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">Quantity</label>
+                <label className="block text-sm font-medium text-gray-800 mb-2">{t('quantity')}</label>
                 <input
                   type="number"
                   min={0.1}
@@ -207,7 +209,7 @@ export default function SellCrops() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">Unit</label>
+                <label className="block text-sm font-medium text-gray-800 mb-2">{t('unit')}</label>
                 <select
                   value={form.unit}
                   onChange={(e) => setForm({ ...form, unit: e.target.value as ListingForm['unit'] })}
@@ -219,7 +221,7 @@ export default function SellCrops() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-800 mb-2">Price per unit (Rs)</label>
+                <label className="block text-sm font-medium text-gray-800 mb-2">{t('pricePerUnitRs')}</label>
                 <input
                   type="number"
                   min={0}
@@ -232,20 +234,20 @@ export default function SellCrops() {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-800 mb-2">Description (optional)</label>
+              <label className="block text-sm font-medium text-gray-800 mb-2">{t('descriptionOptional')}</label>
               <textarea
                 value={form.description || ''}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
                 className="input-field min-h-[80px]"
-                placeholder="Quality, variety, etc."
+                placeholder={t('qualityVarietyEtc')}
               />
             </div>
             <div className="flex gap-2">
               <button type="submit" className="btn-primary">
-                {editingId ? 'Update' : 'Create'} listing
+                {editingId ? t('updateListing') : t('createListing')}
               </button>
               <button type="button" onClick={resetForm} className="btn-secondary">
-                Cancel
+                {t('cancel')}
               </button>
             </div>
           </form>
@@ -258,10 +260,10 @@ export default function SellCrops() {
         ) : listings.length === 0 ? (
           <div className="text-center py-12 rounded-2xl bg-gray-50 border border-gray-200">
             <Package className="w-14 h-14 text-gray-400 mx-auto mb-3" />
-            <p className="text-gray-600 font-medium">No listings yet</p>
-            <p className="text-sm text-gray-500 mt-1">Add a listing so buyers can find your produce.</p>
+            <p className="text-gray-600 font-medium">{t('noListingsYet')}</p>
+            <p className="text-sm text-gray-500 mt-1">{t('listingSubtitle')}</p>
             <button type="button" onClick={() => setShowForm(true)} className="btn-primary mt-4">
-              Add your first listing
+              {t('addFirstListing')}
             </button>
           </div>
         ) : (
@@ -330,8 +332,8 @@ export default function SellCrops() {
               <ShoppingCart className="w-6 h-6 text-orange-600" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-800">Orders from buyers</h2>
-              <p className="text-sm text-gray-500">Buy requests with buyer contact and address</p>
+              <h2 className="text-xl font-bold text-gray-800">{t('ordersFromBuyers')}</h2>
+              <p className="text-sm text-gray-500">{t('ordersFromBuyersSubtitle')}</p>
             </div>
           </div>
           <button
@@ -341,7 +343,7 @@ export default function SellCrops() {
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-100 text-orange-700 font-medium hover:bg-orange-200 disabled:opacity-50 text-sm"
           >
             <RefreshCw className={`w-4 h-4 ${ordersLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('refresh')}
           </button>
         </div>
         {ordersLoading ? (
@@ -387,12 +389,12 @@ export default function SellCrops() {
                     )}
                     <div className="sm:col-span-2 flex items-start gap-2 text-gray-600">
                       <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <span>Address: {addressStr}</span>
+                      <span>{t('address')}: {addressStr}</span>
                     </div>
                   </div>
                   {(order.status === 'pending' || order.status === 'accepted' || order.status === 'confirmed') && (
                     <div className="mt-3 pt-3 border-t border-gray-200 flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-gray-600">Update status:</span>
+                      <span className="text-xs font-medium text-gray-600">{t('updateStatus')}:</span>
                       {order.status === 'pending' && (
                         <>
                           <button
@@ -401,7 +403,7 @@ export default function SellCrops() {
                             disabled={updatingOrderId === order._id}
                             className="text-xs px-3 py-1.5 rounded-lg bg-blue-100 text-blue-700 font-medium hover:bg-blue-200 disabled:opacity-50"
                           >
-                            {updatingOrderId === order._id ? 'Updating...' : 'Accept'}
+                            {updatingOrderId === order._id ? t('updating') : t('accept')}
                           </button>
                           <button
                             type="button"
@@ -409,7 +411,7 @@ export default function SellCrops() {
                             disabled={updatingOrderId === order._id}
                             className="text-xs px-3 py-1.5 rounded-lg bg-red-100 text-red-700 font-medium hover:bg-red-200 disabled:opacity-50"
                           >
-                            {updatingOrderId === order._id ? 'Updating...' : 'Reject'}
+                            {updatingOrderId === order._id ? t('updating') : t('reject')}
                           </button>
                         </>
                       )}
@@ -420,12 +422,12 @@ export default function SellCrops() {
                           disabled={updatingOrderId === order._id}
                           className="text-xs px-3 py-1.5 rounded-lg bg-green-100 text-green-700 font-medium hover:bg-green-200 disabled:opacity-50"
                         >
-                          {updatingOrderId === order._id ? 'Updating...' : 'Mark Delivered'}
+                          {updatingOrderId === order._id ? t('updating') : t('markDelivered')}
                         </button>
                       )}
                     </div>
                   )}
-                  <p className="text-xs text-gray-500 mt-2">Ordered on {new Date(order.createdAt).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 mt-2">{t('orderedOn')} {new Date(order.createdAt).toLocaleString()}</p>
                 </div>
               );
             })}
@@ -435,8 +437,7 @@ export default function SellCrops() {
 
       <div className="card bg-blue-50 border-blue-200 p-4">
         <p className="text-sm text-blue-800">
-          <strong>Buyer portal:</strong> Buyers browse and contact you from the AgroMitra Buyer Portal (port 8000).
-          Keep your phone and location updated in your profile.
+          <strong>{t('buyerPortal')}:</strong> {t('buyerPortalHelp')}
         </p>
       </div>
     </div>

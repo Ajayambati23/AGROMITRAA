@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from '@/hooks/useTranslation';
 import { buyerMarketplaceAPI, buyerOrdersAPI, getErrorMessage, Listing } from '@/lib/api';
 import { Package, MapPin, Search, Leaf, ShoppingCart, LogOut, RefreshCw } from 'lucide-react';
 
@@ -13,6 +14,7 @@ const INDIAN_STATES = [
 
 export default function BuyerPortalPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export default function BuyerPortalPage() {
     try {
       const { order } = await buyerOrdersAPI.create(listingId, num);
       const orderId = order?._id ? `Order #${String(order._id).slice(-8).toUpperCase()}` : 'Order';
-      setOrderSuccess(`${orderId} placed for ${num} ${listing.unit} of ${listing.cropName}. View "My Orders" for status and farmer contact.`);
+      setOrderSuccess(`${orderId} placed for ${num} ${listing.unit} of ${listing.cropName}.`);
       setQuantityByListing((prev) => ({ ...prev, [listingId]: 0 }));
       setTimeout(() => setOrderSuccess(null), 8000);
     } catch (err: unknown) {
@@ -116,7 +118,7 @@ export default function BuyerPortalPage() {
     return parts.length ? parts.join(', ') : loc.state || null;
   };
 
-  const sellerName = (l: Listing) => l.sellerId?.name || 'Farmer';
+  const sellerName = (l: Listing) => l.sellerId?.name || t('seller');
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -127,8 +129,8 @@ export default function BuyerPortalPage() {
               <Leaf className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">AgroMitra Buyer Portal</h1>
-              <p className="text-slate-400 text-sm">Buy crops directly from farmers</p>
+              <h1 className="text-xl font-bold">{t('buyerPortalTitle')}</h1>
+              <p className="text-slate-400 text-sm">{t('buyDirectlyFromFarmers')}</p>
             </div>
           </Link>
           <div className="flex items-center gap-3">
@@ -136,16 +138,16 @@ export default function BuyerPortalPage() {
               <>
                 <span className="text-slate-300 text-sm hidden sm:inline">{buyerName}</span>
                 <Link href="/buyer/orders" className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium">
-                  <ShoppingCart className="w-4 h-4" /> My Orders
+                  <ShoppingCart className="w-4 h-4" /> {t('myOrdersTitle')}
                 </Link>
                 <button type="button" onClick={handleLogout} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium">
-                  <LogOut className="w-4 h-4" /> Logout
+                  <LogOut className="w-4 h-4" /> {t('logout')}
                 </button>
               </>
             ) : (
               <>
-                <Link href="/buyer/login" className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium">Login</Link>
-                <Link href="/buyer/register" className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium">Register</Link>
+                <Link href="/buyer/login" className="px-4 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-white text-sm font-medium">{t('login')}</Link>
+                <Link href="/buyer/register" className="px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-medium">{t('register')}</Link>
               </>
             )}
           </div>
@@ -154,20 +156,20 @@ export default function BuyerPortalPage() {
 
       <main className="container mx-auto px-4 py-8 max-w-6xl">
         <form onSubmit={handleSearch} className="flex flex-wrap gap-3 mb-8">
-          <input type="text" value={cropSearch} onChange={(e) => setCropSearch(e.target.value)} placeholder="Search by crop name..." className="flex-1 min-w-[200px] px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none" />
+          <input type="text" value={cropSearch} onChange={(e) => setCropSearch(e.target.value)} placeholder={t('searchByCropName')} className="flex-1 min-w-[200px] px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none" />
           <select value={stateFilter} onChange={(e) => setStateFilter(e.target.value)} className="px-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-green-500">
-            <option value="">All states</option>
+            <option value="">{t('allStates')}</option>
             {INDIAN_STATES.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
           <button type="submit" className="px-6 py-3 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 flex items-center gap-2">
             <Search className="w-4 h-4" />
-            Search
+            {t('search')}
           </button>
           <button type="button" onClick={() => load()} disabled={loading} className="px-6 py-3 bg-slate-600 text-white font-medium rounded-xl hover:bg-slate-700 disabled:opacity-50 flex items-center gap-2">
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('refresh')}
           </button>
         </form>
 
@@ -175,22 +177,22 @@ export default function BuyerPortalPage() {
         {error && <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl">{error}</div>}
 
         {loading ? (
-          <div className="text-center py-16 text-gray-500">Loading listings...</div>
+          <div className="text-center py-16 text-gray-500">{t('loadingListings')}</div>
         ) : listings.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-600 font-medium">No listings found</p>
-            <p className="text-sm text-gray-500 mt-1">Try changing filters or check back later.</p>
+            <p className="text-gray-600 font-medium">{t('noListingsFound')}</p>
+            <p className="text-sm text-gray-500 mt-1">{t('tryChangingFilters')}</p>
           </div>
         ) : (
           <>
-            <p className="text-sm text-gray-500 mb-4">{total} listing(s) found</p>
+            <p className="text-sm text-gray-500 mb-4">{total} {t('listingsFound')}</p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {listings.map((listing) => (
                 <div key={listing._id} className="bg-white rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-5 flex flex-col">
                   <div className="flex items-start justify-between gap-2 mb-3">
                     <h3 className="text-lg font-bold text-gray-800">{listing.cropName}</h3>
-                    <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">Active</span>
+                    <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">{t('activeStatus')}</span>
                   </div>
                   <p className="text-xl font-bold text-green-700 mb-2">Rs {listing.pricePerUnit} / {listing.unit}</p>
                   <p className="text-sm text-gray-600 mb-2">Quantity: {listing.quantity} {listing.unit}</p>
@@ -200,19 +202,19 @@ export default function BuyerPortalPage() {
                     {isLoggedIn ? (
                       <>
                         <div className="flex items-center gap-2">
-                          <label className="text-sm text-gray-600">Qty:</label>
+                          <label className="text-sm text-gray-600">{t('quantity')}:</label>
                           <input type="number" min={0.1} max={listing.quantity} step={0.1} value={quantityByListing[listing._id || ''] ?? ''} onChange={(e) => setQuantityByListing((prev) => ({ ...prev, [listing._id || '']: parseFloat(e.target.value) || 0 }))} className="w-20 px-2 py-1.5 border border-gray-200 rounded-lg text-sm" />
                           <span className="text-xs text-gray-500">{listing.unit}</span>
                         </div>
                         <button type="button" onClick={() => handleProceed(listing)} disabled={proceedingId === listing._id} className="w-full py-2 px-4 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 disabled:opacity-50 text-sm">
-                          {proceedingId === listing._id ? 'Placing...' : 'Proceed to buy'}
+                          {proceedingId === listing._id ? t('loading') : t('proceedToBuy')}
                         </button>
                       </>
                     ) : (
-                      <Link href="/buyer/login" className="block w-full py-2 px-4 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 text-center text-sm">Sign in to buy</Link>
+                      <Link href="/buyer/login" className="block w-full py-2 px-4 bg-green-600 text-white font-medium rounded-xl hover:bg-green-700 text-center text-sm">{t('signInToBuy')}</Link>
                     )}
-                    <p className="text-xs font-medium text-gray-500">Seller: {sellerName(listing)}</p>
-                    {listing.sellerRating && <p className="text-xs text-amber-700">Rating: {listing.sellerRating.avgRating ?? 'New'} {listing.sellerRating.avgRating ? '/ 5' : ''} ({listing.sellerRating.totalReviews} review{listing.sellerRating.totalReviews === 1 ? '' : 's'})</p>}
+                    <p className="text-xs font-medium text-gray-500">{t('seller')}: {sellerName(listing)}</p>
+                    {listing.sellerRating && <p className="text-xs text-amber-700">{t('rating')}: {listing.sellerRating.avgRating ?? 'New'} {listing.sellerRating.avgRating ? '/ 5' : ''}</p>}
                   </div>
                 </div>
               ))}

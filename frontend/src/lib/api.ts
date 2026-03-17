@@ -317,6 +317,8 @@ export const cropsAPI = {
       market: string;
       count: number;
       prices: MarketCommodityPrice[];
+      source?: string;
+      message?: string;
     };
   },
 };

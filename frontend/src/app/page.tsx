@@ -84,7 +84,7 @@ export default function Home() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-500 text-sm">Loading...</p>
+          <p className="text-gray-500 text-sm">{t('loading')}</p>
         </div>
       </div>
     );
@@ -95,33 +95,33 @@ export default function Home() {
     const features = [
       {
         icon: '🤖',
-        title: 'AI-Powered Chat',
-        description: 'Get instant farming advice from our intelligent assistant',
+        title: t('aiPoweredChatTitle'),
+        description: t('aiPoweredChatDescription'),
       },
       {
         icon: '🌾',
-        title: 'Crop Recommendations',
-        description: 'Smart suggestions based on your location and soil type',
+        title: t('cropRecommendations'),
+        description: t('cropRecommendationsDescription'),
       },
       {
         icon: '💰',
-        title: 'Market Prices',
-        description: 'Real-time market data to maximize your profits',
+        title: t('marketPrices'),
+        description: t('marketPricesDescription'),
       },
       {
         icon: '📅',
-        title: 'Farming Calendar',
-        description: 'Plan your farming activities with seasonal guidance',
+        title: t('farmingCalendar'),
+        description: t('farmingCalendarDescription'),
       },
       {
         icon: '🗣️',
-        title: 'Multi-Language Support',
-        description: 'Available in Hindi, Telugu, Tamil, Kannada & more',
+        title: t('multiLanguageSupportTitle'),
+        description: t('multiLanguageSupportDescription'),
       },
       {
         icon: '🎤',
-        title: 'Voice Support',
-        description: 'Ask questions using voice in your preferred language',
+        title: t('voiceSupportTitle'),
+        description: t('voiceSupportDescription'),
       },
     ];
 
@@ -145,11 +145,11 @@ export default function Home() {
               
               {/* Tagline */}
               <p className="text-4xl font-bold text-gray-800 mb-4">
-                Smart Farming, Better Harvest
+                {t('smartFarmingBetterHarvest')}
               </p>
               
               <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-                Your AI-powered companion for modern agriculture. Get expert advice, market insights, and farming guidance all in one place.
+                {t('heroDescription')}
               </p>
 
               {/* Action Buttons */}
@@ -158,21 +158,21 @@ export default function Home() {
                   onClick={() => router.push('/login')}
                   className="px-8 py-4 bg-gradient-to-r from-emerald-600 to-green-700 text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all duration-300 transform hover:scale-105 animate-fade-up stagger-2"
                 >
-                  Sign In
+                  {t('signIn')}
                 </button>
                 
                 <button
                   onClick={() => router.push('/register')}
                   className="px-8 py-4 bg-white text-emerald-700 font-bold text-lg rounded-xl border-2 border-emerald-600 hover:bg-emerald-50 transition-all duration-300 transform hover:scale-105 animate-fade-up stagger-3"
                 >
-                  Create Account
+                  {t('createAccount')}
                 </button>
 
                 <button
                   onClick={() => router.push('/buyer')}
                   className="px-8 py-4 bg-amber-50 text-amber-800 font-bold text-lg rounded-xl border-2 border-amber-500 hover:bg-amber-100 transition-all duration-300 transform hover:scale-105 animate-fade-up stagger-4"
                 >
-                  Buyer Portal
+                  {t('buyerPortal')}
                 </button>
               </div>
             </div>
@@ -182,7 +182,7 @@ export default function Home() {
           <section className="bg-white py-20">
             <div className="container mx-auto px-4">
               <h2 className="text-4xl font-bold text-center text-gray-800 mb-16">
-                Powerful Features for Modern Farmers
+                {t('powerfulFeatures')}
               </h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -208,16 +208,16 @@ export default function Home() {
           <section className="bg-gradient-to-r from-emerald-600 to-green-700 py-16">
             <div className="container mx-auto px-4 text-center text-white">
               <h2 className="text-4xl font-bold mb-6">
-                Ready to Transform Your Farming?
+                {t('readyToTransformYourFarming')}
               </h2>
               <p className="text-xl mb-8 max-w-2xl mx-auto">
-                Join thousands of farmers already using AgroMitra to increase yields and maximize profits.
+                {t('joinThousandsOfFarmers')}
               </p>
               <button
                 onClick={() => router.push('/register')}
                 className="px-10 py-4 bg-white text-emerald-700 font-bold text-lg rounded-xl hover:bg-gray-100 transition-all duration-300 transform hover:scale-105"
               >
-                Get Started Free
+                {t('getStartedFree')}
               </button>
             </div>
           </section>
@@ -225,7 +225,7 @@ export default function Home() {
           {/* Footer */}
           <footer className="bg-gray-800 text-white py-8">
             <div className="container mx-auto px-4 text-center">
-              <p>&copy; 2026 AgroMitra. Empowering Farmers with Technology.</p>
+              <p>&copy; 2026 AgroMitra. {t('footerCaption')}</p>
             </div>
           </footer>
         </main>
@@ -253,12 +253,12 @@ export default function Home() {
 
           {activeTab === 'dashboard' && (
             <div className="space-y-6 max-w-5xl mx-auto">
-              <h1 className="text-xl font-bold text-gray-800">{t('aiChat')} &amp; Tools</h1>
+              <h1 className="text-xl font-bold text-gray-800">{t('aiChatAndTools')}</h1>
               {/* Weather card - Tech Blue gradient, visual anchor */}
               <div className="bg-gradient-to-r from-[#2f6f8f] to-[#2a5f70] rounded-2xl shadow-md p-6 text-white animate-fade-up">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="label-caps text-white/80">WEATHER</p>
+                    <p className="label-caps text-white/80">{t('weather')}</p>
                     <p className="text-2xl font-bold mt-1">
                       {weatherLoading
                         ? 'Loading...'
@@ -277,20 +277,20 @@ export default function Home() {
                 </div>
                 {weather?.alerts?.length ? (
                   <div className="mt-3 pt-3 border-t border-white/20">
-                    <p className="text-xs font-semibold text-white/90 mb-1">Advisory</p>
+                    <p className="text-xs font-semibold text-white/90 mb-1">{t('advisory')}</p>
                     <p className="text-xs text-white/90">{weather.alerts[0]}</p>
                   </div>
                 ) : null}
               </div>
               {/* Market trend card - high contrast */}
               <div className="card p-5 animate-fade-up stagger-2 hover-lift">
-                <p className="label-caps mb-2">MARKET TREND</p>
+                <p className="label-caps mb-2">{t('marketTrend')}</p>
                 <p className="text-lg font-bold text-gray-800">Rice</p>
                 <p className="price-cell text-xl mt-1">₹2,200 / quintal</p>
                 <p className="text-green-600 text-sm font-medium flex items-center gap-1 mt-1">
                   <TrendingUp className="w-4 h-4" /> 2.5% up
                 </p>
-                <p className="text-gray-500 text-xs mt-2">Updated recently</p>
+                <p className="text-gray-500 text-xs mt-2">{t('updatedRecently')}</p>
               </div>
               {/* Quick action grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -321,8 +321,8 @@ export default function Home() {
                   <MessageSquare className="w-7 h-7" />
                 </div>
                 <div className="text-left">
-                  <p className="font-semibold text-gray-800">AI Chat</p>
-                  <p className="text-sm text-gray-500">Ask farming questions in your language</p>
+                  <p className="font-semibold text-gray-800">{t('aiChat')}</p>
+                  <p className="text-sm text-gray-500">{t('askQuestionsInYourLanguage')}</p>
                 </div>
               </button>
             </div>
@@ -341,7 +341,7 @@ export default function Home() {
           {activeTab === 'calendar' && <Calendar />}
           {activeTab === 'profile' && (
             <div className="max-w-4xl mx-auto">
-              <h1 className="text-xl font-bold text-gray-800 mb-4">My Profile</h1>
+              <h1 className="text-xl font-bold text-gray-800 mb-4">{t('myProfile')}</h1>
               <UserProfileDashboard />
             </div>
           )}

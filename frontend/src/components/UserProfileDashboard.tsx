@@ -1,10 +1,12 @@
 'use client';
 
 import { useApp } from '@/contexts/AppContext';
+import { useTranslation } from '@/hooks/useTranslation';
 import { User, Mail, Phone, MapPin, Sprout, Award } from 'lucide-react';
 
 export default function UserProfileDashboard() {
   const { state } = useApp();
+  const { t } = useTranslation();
   const user = state.user;
   if (!user) return null;
 
@@ -13,14 +15,14 @@ export default function UserProfileDashboard() {
     user.location?.district,
     user.location?.state,
   ].filter(Boolean);
-  const locationStr = locationParts.length ? locationParts.join(', ') : 'Not set';
+  const locationStr = locationParts.length ? locationParts.join(', ') : t('notSet');
 
   const fields = [
-    { label: 'Full name', value: user.name, icon: User },
-    { label: 'Email', value: user.email, icon: Mail },
-    { label: 'Phone', value: user.phone, icon: Phone },
-    { label: 'Location', value: locationStr, icon: MapPin },
-    { label: 'Preferred language', value: (user.preferredLanguage || 'english').replace(/^./, (c) => c.toUpperCase()), icon: null },
+    { label: t('fullName'), value: user.name, icon: User },
+    { label: t('emailAddress'), value: user.email, icon: Mail },
+    { label: t('phoneNumber'), value: user.phone, icon: Phone },
+    { label: t('location'), value: locationStr, icon: MapPin },
+    { label: t('preferredLanguage'), value: (user.preferredLanguage || 'english').replace(/^./, (c) => c.toUpperCase()), icon: null },
     { label: 'Soil type', value: user.soilType ? String(user.soilType).replace(/^./, (c) => c.toUpperCase()) : '—', icon: Sprout },
     { label: 'Farm size', value: user.farmSize != null ? `${user.farmSize} acres` : '—', icon: null },
     { label: 'Experience', value: user.experience ? String(user.experience).replace(/^./, (c) => c.toUpperCase()) : '—', icon: Award },
@@ -35,11 +37,11 @@ export default function UserProfileDashboard() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-800">{user.name}</h1>
-            <p className="text-gray-500">AgroMitra Farmer Account</p>
+            <p className="text-gray-500">{t('agroMitraFarmerAccount')}</p>
           </div>
         </div>
 
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">Account details</h2>
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">{t('accountDetails')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {fields.map(({ label, value, icon: Icon }) => (
             <div
@@ -62,7 +64,7 @@ export default function UserProfileDashboard() {
 
       <div className="card bg-green-50 border border-green-200 p-4">
         <p className="text-sm text-green-800">
-          To update your profile (name, phone, location, etc.), use the settings in your account or contact support.
+          {t('updateProfileHint')}
         </p>
       </div>
     </div>
