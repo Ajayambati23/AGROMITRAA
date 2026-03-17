@@ -163,6 +163,7 @@ export const translations = {
     updateListing: "Update listing",
     createListing: "Create listing",
     noListingsYet: "No listings yet",
+    noOrdersYet: "No orders yet",
     addFirstListing: "Add your first listing",
     ordersFromBuyers: "Orders from buyers",
     ordersFromBuyersSubtitle: "Buy requests with buyer contact and address",
